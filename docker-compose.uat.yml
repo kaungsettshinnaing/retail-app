@@ -38,7 +38,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.retail-uat.entrypoints=websecure"
-      - "traefik.http.routers.retail-uat.rule=Host(`${DOMAIN:-uat-retail.cashbackapp.cloud}`)"
+      - "traefik.http.routers.retail-uat.rule=Host(`${DOMAIN:-kmz-uat.cashbackapp.cloud}`)"
       - "traefik.http.routers.retail-uat.tls.certresolver=letsencrypt"
       - "traefik.http.services.retail-uat.loadbalancer.server.port=3000"
     networks:

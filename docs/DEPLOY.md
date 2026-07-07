@@ -1,7 +1,7 @@
 # Deployment Guide — Retail Store Management
 
-**Prod URL:** https://retail.cashbackapp.cloud  
-**UAT URL:** https://uat-retail.cashbackapp.cloud  
+**Prod URL:** https://kmz.cashbackapp.cloud  
+**UAT URL:** https://kmz-uat.cashbackapp.cloud  
 **VPS:** 187.127.106.81 (Hostinger) — shared with QQ Hotpot; Traefik already running  
 **GitHub repo:** kaungsettshinnaing/retail-app  
 
@@ -11,8 +11,8 @@
 
 ```
 Internet → Traefik (shared with QQ Hotpot, already running)
-              ├── retail.cashbackapp.cloud     → prod app container
-              └── uat-retail.cashbackapp.cloud → UAT app container
+              ├── kmz.cashbackapp.cloud     → prod app container
+              └── kmz-uat.cashbackapp.cloud → UAT app container
 
 VPS directories:
   /opt/retail-app       — production (tracks origin/main)
