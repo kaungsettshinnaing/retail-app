@@ -1,0 +1,57 @@
+# Retail Store Management — production stack
+#   1) copy .env.example -> .env and fill values
+#   2) docker compose up -d --build
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  app:
+    image: ${APP_IMAGE:-retail-app:latest}
+    build: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      TZ: ${TZ:-Asia/Yangon}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+      AUTH_SECRET: ${AUTH_SECRET}
+      CUSTOMER_AUTH_SECRET: ${CUSTOMER_AUTH_SECRET}
+      APP_URL: ${APP_URL:-https://yourstore.com}
+      NODE_OPTIONS: "--max-old-space-size=512"
+    depends_on:
+      db:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.retail.entrypoints=websecure"
+      - "traefik.http.routers.retail.rule=Host(`${DOMAIN:-retail.cashbackapp.cloud}`)"
+      - "traefik.http.routers.retail.tls.certresolver=letsencrypt"
+      - "traefik.http.services.retail.loadbalancer.server.port=3000"
+    networks:
+      - default
+      - traefik-public
+    volumes:
+      - uploads:/app/uploads
+
+volumes:
+  pgdata:
+  uploads:
+
+networks:
+  traefik-public:
+    external: true

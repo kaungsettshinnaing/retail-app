@@ -1,0 +1,56 @@
+# Retail Store Management — UAT stack
+# docker compose -f docker-compose.uat.yml -p retail-uat up -d --build
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - pgdata_uat:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  app:
+    image: ${APP_IMAGE:-retail-app:uat}
+    build: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      TZ: ${TZ:-Asia/Yangon}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+      AUTH_SECRET: ${AUTH_SECRET}
+      CUSTOMER_AUTH_SECRET: ${CUSTOMER_AUTH_SECRET}
+      APP_URL: ${APP_URL:-https://uat.yourstore.com}
+      NODE_OPTIONS: "--max-old-space-size=512"
+    depends_on:
+      db:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.retail-uat.entrypoints=websecure"
+      - "traefik.http.routers.retail-uat.rule=Host(`${DOMAIN:-uat-retail.cashbackapp.cloud}`)"
+      - "traefik.http.routers.retail-uat.tls.certresolver=letsencrypt"
+      - "traefik.http.services.retail-uat.loadbalancer.server.port=3000"
+    networks:
+      - default
+      - traefik-public
+    volumes:
+      - uploads_uat:/app/uploads
+
+volumes:
+  pgdata_uat:
+  uploads_uat:
+
+networks:
+  traefik-public:
+    external: true

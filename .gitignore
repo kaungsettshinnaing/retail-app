@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Prisma
+prisma/migrations/
+
+# Environment
+.env
+.env.uat
+.env.local
+.env.production
+
+# Uploads (runtime volume)
+uploads/
+
+# Build artifacts
+*.tsbuildinfo
+next-env.d.ts
+
+# OS
+.DS_Store
+Thumbs.db

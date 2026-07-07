@@ -1,0 +1,836 @@
+// Retail Store Management System — Prisma schema (PostgreSQL)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  MANAGER
+  CASHIER
+  STOREMAN
+  HR
+}
+
+enum ProductType {
+  REGULAR       // tracked stock, quantity-limited
+  PASS_THROUGH  // no stock limit, ordered from supplier on demand
+  CONTACT_PRICE // volatile price, inquiry/quotation workflow
+}
+
+enum OrderChannel {
+  POS
+  ONLINE
+}
+
+enum OrderStatus {
+  PENDING
+  PICKING
+  PACKED
+  READY
+  DELIVERED
+  PICKED_UP
+  CANCELLED
+}
+
+enum OrderItemStatus {
+  PENDING
+  PICKED
+  UNAVAILABLE
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SUBMITTED  // cashier entered invoice data
+  COUNTING   // storeman counting incoming stock
+  PLACED     // stock assigned to warehouse locations
+  COMPLETE
+}
+
+enum StockMovementType {
+  INVOICE_IN  // from supplier invoice
+  SALE_OUT    // from order
+  ADJUSTMENT  // manual correction
+  RETURN_IN   // returned stock
+}
+
+enum InquiryStatus {
+  OPEN
+  QUOTED
+  CONVERTED // became an order
+  CLOSED
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+  COD
+}
+
+enum TransferStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+enum CashEntryType {
+  IN
+  OUT
+}
+
+enum CashEntrySource {
+  SALE
+  EXPENSE
+  ADJUSTMENT
+  OTHER
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LEAVE
+  REST_DAY
+  OT
+}
+
+enum DayType {
+  FULL
+  HALF
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PayrollStatus {
+  DRAFT
+  LOCKED
+}
+
+// ---------------------------------------------------------------------------
+// Auth / Staff
+// ---------------------------------------------------------------------------
+
+model User {
+  id              String   @id @default(cuid())
+  name            String
+  username        String   @unique
+  passwordHash    String
+  roles           Role[]
+  isActive        Boolean  @default(true)
+  isSystemAccount Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // POS relations
+  posOrders        Order[]           @relation("OrderCashier")
+  invoicesEntered  SupplierInvoice[] @relation("InvoiceCashier")
+  invoicesCounted  SupplierInvoice[] @relation("InvoiceCounter")
+  stockPicks       StockPick[]       @relation("PickedBy")
+  stockMovements   StockMovement[]   @relation("MovementActor")
+  inquiryQuotes    PriceInquiry[]    @relation("QuotedBy")
+  proofConfirmed   OrderPaymentProof[] @relation("ProofConfirmer")
+  invoiceLogs      SupplierInvoiceLog[] @relation("InvoiceLogActor")
+  orderLogs        OrderLog[]        @relation("OrderLogActor")
+
+  // Accounting relations
+  expensesRecorded  Expense[]    @relation("ExpenseRecorder")
+  cashEntriesRecorded CashEntry[] @relation("CashEntryRecorder")
+
+  // HR relations
+  employee            Employee?
+  approvedAttendances Attendance[]    @relation("AttendanceApprovedBy")
+  reviewedLeaves      LeaveRequest[]  @relation("LeaveReviewedBy")
+  createdAdvances     SalaryAdvance[] @relation("AdvanceCreatedBy")
+  createdFines        EmployeeFine[]  @relation("FineCreatedBy")
+  createdBonuses      AdHocBonus[]    @relation("BonusCreatedBy")
+  lockedPayrolls      Payroll[]       @relation("PayrollLockedBy")
+}
+
+// ---------------------------------------------------------------------------
+// Warehouse
+// ---------------------------------------------------------------------------
+
+model WarehouseArea {
+  id        String           @id @default(cuid())
+  name      String           @unique
+  sortOrder Int              @default(0)
+  isActive  Boolean          @default(true)
+
+  shelves   WarehouseShelf[]
+  sections  WarehouseSection[]
+}
+
+model WarehouseShelf {
+  id        String             @id @default(cuid())
+  area      WarehouseArea      @relation(fields: [areaId], references: [id])
+  areaId    String
+  name      String
+  sortOrder Int                @default(0)
+  isActive  Boolean            @default(true)
+
+  sections  WarehouseSection[]
+
+  @@unique([areaId, name])
+  @@index([areaId])
+}
+
+model WarehouseSection {
+  id        String          @id @default(cuid())
+  area      WarehouseArea   @relation(fields: [areaId], references: [id])
+  areaId    String
+  shelf     WarehouseShelf? @relation(fields: [shelfId], references: [id])
+  shelfId   String?
+  name      String
+  sortOrder Int             @default(0)
+  isActive  Boolean         @default(true)
+
+  stockEntries   StockEntry[]
+  invoiceItems   SupplierInvoiceItem[] @relation("ItemLocation")
+  stockPicks     StockPick[]
+
+  @@unique([areaId, shelfId, name])
+  @@index([areaId])
+}
+
+// ---------------------------------------------------------------------------
+// Product Catalog
+// ---------------------------------------------------------------------------
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  parentId  String?
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryTree")
+  sortOrder Int        @default(0)
+  isActive  Boolean    @default(true)
+  imageUrl  String?
+
+  products Product[]
+
+  @@index([parentId])
+}
+
+model Product {
+  id            String      @id @default(cuid())
+  name          String
+  description   String?
+  type          ProductType @default(REGULAR)
+  category      Category?   @relation(fields: [categoryId], references: [id])
+  categoryId    String?
+  imageUrl      String?
+  images        String[]    // additional image URLs
+  isActive      Boolean     @default(true)
+  isOnline      Boolean     @default(true) // show on public store
+  unit          String      @default("unit") // pcs, kg, box, etc.
+  lowStockAlert Int?        // alert threshold for REGULAR type
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  options        ProductOption[]
+  variants       ProductVariant[]
+  stockMovements StockMovement[]
+  orderItems     OrderItem[]
+  invoiceItems   SupplierInvoiceItem[]
+  inquiries      PriceInquiry[]
+
+  @@index([categoryId])
+  @@index([type])
+  @@index([isActive, isOnline])
+}
+
+model ProductOption {
+  id        String  @id @default(cuid())
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  name      String  // "Size" | "Color" etc.
+  sortOrder Int     @default(0)
+
+  @@unique([productId, name])
+  @@index([productId])
+}
+
+model ProductVariant {
+  id           String  @id @default(cuid())
+  product      Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId    String
+  sku          String  @unique
+  optionValues Json    // {"Size": "Large", "Color": "Red"}
+  price        Int?    // null for CONTACT_PRICE
+  comparePrice Int?
+  imageUrl     String?
+  isActive     Boolean @default(true)
+  sortOrder    Int     @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  stockEntries   StockEntry[]
+  stockMovements StockMovement[]
+  orderItems     OrderItem[]
+  invoiceItems   SupplierInvoiceItem[]
+
+  @@index([productId])
+  @@index([isActive])
+}
+
+// ---------------------------------------------------------------------------
+// Inventory / Stock
+// ---------------------------------------------------------------------------
+
+model StockEntry {
+  id         String           @id @default(cuid())
+  variant    ProductVariant   @relation(fields: [variantId], references: [id])
+  variantId  String
+  location   WarehouseSection @relation(fields: [locationId], references: [id])
+  locationId String
+  qty        Int              @default(0)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  movements StockMovement[]
+
+  @@unique([variantId, locationId])
+  @@index([variantId])
+  @@index([locationId])
+}
+
+model StockMovement {
+  id            String            @id @default(cuid())
+  variant       ProductVariant?   @relation(fields: [variantId], references: [id])
+  variantId     String?
+  product       Product?          @relation(fields: [productId], references: [id])
+  productId     String?
+  stockEntry    StockEntry?       @relation(fields: [stockEntryId], references: [id])
+  stockEntryId  String?
+  type          StockMovementType
+  qty           Int               // positive = in, negative = out
+  previousQty   Int?
+  invoiceItemId String?           // set for INVOICE_IN
+  orderItemId   String?           // set for SALE_OUT
+  actorId       String
+  actor         User              @relation("MovementActor", fields: [actorId], references: [id])
+  note          String?
+  createdAt     DateTime          @default(now())
+
+  @@index([variantId])
+  @@index([productId])
+  @@index([stockEntryId])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Suppliers & Invoices
+// ---------------------------------------------------------------------------
+
+model Supplier {
+  id        String            @id @default(cuid())
+  name      String
+  contact   String?
+  phone     String?
+  email     String?
+  address   String?
+  notes     String?
+  isActive  Boolean           @default(true)
+  createdAt DateTime          @default(now())
+
+  invoices SupplierInvoice[]
+  expenses Expense[]
+}
+
+model SupplierInvoice {
+  id                 String        @id @default(cuid())
+  invoiceNo          String?
+  supplier           Supplier?     @relation(fields: [supplierId], references: [id])
+  supplierId         String?
+  status             InvoiceStatus @default(DRAFT)
+  invoiceDate        DateTime
+  totalAmount        Int?
+  paymentMethod      PaymentMethod?
+  paidAt             DateTime?
+  notes              String?
+
+  cashierId          String?
+  cashier            User?         @relation("InvoiceCashier", fields: [cashierId], references: [id])
+  cashierSubmittedAt DateTime?
+
+  counterId          String?
+  counter            User?         @relation("InvoiceCounter", fields: [counterId], references: [id])
+  counterSubmittedAt DateTime?
+
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  items SupplierInvoiceItem[]
+  logs  SupplierInvoiceLog[]
+
+  @@index([status])
+  @@index([supplierId])
+  @@index([paidAt])
+}
+
+model SupplierInvoiceItem {
+  id          String           @id @default(cuid())
+  invoice     SupplierInvoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId   String
+  product     Product?         @relation(fields: [productId], references: [id])
+  productId   String?
+  variant     ProductVariant?  @relation(fields: [variantId], references: [id])
+  variantId   String?
+  description String?          // free text for unmapped line items
+  invoicedQty Int
+  countedQty  Int?
+  finalQty    Int?
+  unitCost    Int?
+  location    WarehouseSection? @relation("ItemLocation", fields: [locationId], references: [id])
+  locationId  String?
+  placedQty   Int?
+  placedAt    DateTime?
+
+  @@index([invoiceId])
+  @@index([productId])
+}
+
+model SupplierInvoiceLog {
+  id        String          @id @default(cuid())
+  invoice   SupplierInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId String
+  actorId   String
+  actor     User            @relation("InvoiceLogActor", fields: [actorId], references: [id])
+  action    String          // CREATED | CASHIER_SUBMITTED | COUNTING | PLACED | MANAGER_RESOLVED | COMPLETE
+  note      String?
+  createdAt DateTime        @default(now())
+
+  @@index([invoiceId])
+}
+
+// ---------------------------------------------------------------------------
+// Customers & Orders
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id           String   @id @default(cuid())
+  name         String?
+  email        String?  @unique
+  phone        String?
+  passwordHash String?
+  address      String?
+  isB2B        Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  orders    Order[]
+  inquiries PriceInquiry[]
+}
+
+model Order {
+  id              String        @id @default(cuid())
+  channel         OrderChannel
+  status          OrderStatus   @default(PENDING)
+
+  cashierId       String?
+  cashier         User?         @relation("OrderCashier", fields: [cashierId], references: [id])
+  customerId      String?
+  customer        Customer?     @relation(fields: [customerId], references: [id])
+  customerName    String?       // for POS walk-in without account
+  customerPhone   String?
+
+  subtotal        Int           @default(0)
+  discount        Int           @default(0)
+  total           Int           @default(0)
+  paymentMethod   PaymentMethod?
+  paidAt          DateTime?
+  notes           String?
+  shippingAddress String?
+
+  pickedAt        DateTime?
+  packedAt        DateTime?
+  readyAt         DateTime?
+  deliveredAt     DateTime?
+  pickedUpAt      DateTime?
+  cancelledAt     DateTime?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  items        OrderItem[]
+  picks        StockPick[]
+  logs         OrderLog[]
+  paymentProof OrderPaymentProof?
+
+  @@index([status])
+  @@index([channel])
+  @@index([cashierId])
+  @@index([customerId])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id             String          @id @default(cuid())
+  order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId        String
+  product        Product         @relation(fields: [productId], references: [id])
+  productId      String
+  variant        ProductVariant? @relation(fields: [variantId], references: [id])
+  variantId      String?
+  productType    ProductType     // snapshot at time of order
+  productName    String          // snapshot
+  variantSku     String?         // snapshot
+  variantOptions Json?           // snapshot {"Size": "Large", "Color": "Red"}
+  unitPrice      Int?            // snapshot; null for CONTACT_PRICE until quoted
+  unitCost       Int?            // snapshot of last purchase cost (for COGS)
+  qty            Int             @default(1)
+  status         OrderItemStatus @default(PENDING)
+  notes          String?
+
+  picks StockPick[]
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([variantId])
+}
+
+model OrderPaymentProof {
+  id            String         @id @default(cuid())
+  order         Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId       String         @unique
+  imageUrl      String
+  uploadedAt    DateTime       @default(now())
+  status        TransferStatus @default(PENDING)
+  confirmedById String?
+  confirmedBy   User?          @relation("ProofConfirmer", fields: [confirmedById], references: [id])
+  confirmedAt   DateTime?
+
+  @@index([status])
+}
+
+model StockPick {
+  id          String           @id @default(cuid())
+  order       Order            @relation(fields: [orderId], references: [id])
+  orderId     String
+  orderItem   OrderItem        @relation(fields: [orderItemId], references: [id])
+  orderItemId String
+  location    WarehouseSection @relation(fields: [locationId], references: [id])
+  locationId  String
+  qtyPicked   Int
+  pickedById  String
+  pickedBy    User             @relation("PickedBy", fields: [pickedById], references: [id])
+  pickedAt    DateTime         @default(now())
+
+  @@index([orderId])
+  @@index([orderItemId])
+}
+
+model OrderLog {
+  id        String      @id @default(cuid())
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId   String
+  actorId   String?
+  actor     User?       @relation("OrderLogActor", fields: [actorId], references: [id])
+  status    OrderStatus
+  note      String?
+  createdAt DateTime    @default(now())
+
+  @@index([orderId])
+}
+
+// ---------------------------------------------------------------------------
+// Price Inquiries (CONTACT_PRICE flow)
+// ---------------------------------------------------------------------------
+
+model PriceInquiry {
+  id            String        @id @default(cuid())
+  product       Product       @relation(fields: [productId], references: [id])
+  productId     String
+  customer      Customer?     @relation(fields: [customerId], references: [id])
+  customerId    String?
+  channel       OrderChannel  @default(ONLINE)
+  status        InquiryStatus @default(OPEN)
+  contactName   String?
+  contactPhone  String?
+  contactEmail  String?
+  message       String?
+  quotedPrice   Int?
+  quotedById    String?
+  quotedBy      User?         @relation("QuotedBy", fields: [quotedById], references: [id])
+  quotedAt      DateTime?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([status])
+  @@index([productId])
+}
+
+// ---------------------------------------------------------------------------
+// Accounting
+// ---------------------------------------------------------------------------
+
+model ExpenseCategory {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  sortOrder Int       @default(0)
+  isActive  Boolean   @default(true)
+
+  expenses Expense[]
+}
+
+model Expense {
+  id            String          @id @default(cuid())
+  category      ExpenseCategory @relation(fields: [categoryId], references: [id])
+  categoryId    String
+  supplier      Supplier?       @relation(fields: [supplierId], references: [id])
+  supplierId    String?
+  amount        Int
+  description   String
+  date          DateTime        @db.Date
+  paymentMethod PaymentMethod
+  receiptUrl    String?
+  recordedById  String
+  recordedBy    User            @relation("ExpenseRecorder", fields: [recordedById], references: [id])
+  createdAt     DateTime        @default(now())
+
+  cashEntry CashEntry? @relation("ExpenseCashEntry")
+
+  @@index([date])
+  @@index([categoryId])
+}
+
+model CashEntry {
+  id           String          @id @default(cuid())
+  type         CashEntryType
+  amount       Int
+  description  String
+  source       CashEntrySource
+  referenceId  String?         // orderId for SALE, expenseId for EXPENSE
+  expenseId    String?         @unique
+  expense      Expense?        @relation("ExpenseCashEntry", fields: [expenseId], references: [id])
+  date         DateTime        @db.Date
+  recordedById String
+  recordedBy   User            @relation("CashEntryRecorder", fields: [recordedById], references: [id])
+  createdAt    DateTime        @default(now())
+
+  @@index([date])
+  @@index([source])
+}
+
+// ---------------------------------------------------------------------------
+// HR & Payroll
+// ---------------------------------------------------------------------------
+
+model StaffRole {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  permissions Role[]
+  isActive    Boolean    @default(true)
+
+  employees Employee[]
+}
+
+model Employee {
+  userId           String     @id
+  user             User       @relation(fields: [userId], references: [id])
+  staffRole        StaffRole? @relation(fields: [staffRoleId], references: [id])
+  staffRoleId      String?
+  employeeNo       String?    @unique
+  dateOfBirth      DateTime?
+  phone            String?
+  address          String?
+  emergencyContact String?
+  bankAccount      String?
+  startDate        DateTime
+  endDate          DateTime?
+  basicSalary      Int        @default(0)
+  attendanceBonus  Int        @default(0)
+  restDays         Int[]      // weekday numbers: 0=Sun … 6=Sat
+  isActive         Boolean    @default(true)
+
+  attendances   Attendance[]
+  leaveRequests LeaveRequest[]
+  advances      SalaryAdvance[]
+  fines         EmployeeFine[]
+  adHocBonuses  AdHocBonus[]
+  payrollItems  PayrollItem[]
+}
+
+model Shift {
+  id        String  @id @default(cuid())
+  name      String  @unique // e.g. "Morning", "Afternoon", "Night"
+  startTime String  // "08:00"
+  endTime   String  // "16:00"
+  isActive  Boolean @default(true)
+
+  attendances Attendance[]
+}
+
+model Attendance {
+  id           String           @id @default(cuid())
+  employee     Employee         @relation(fields: [employeeId], references: [userId])
+  employeeId   String
+  shift        Shift?           @relation(fields: [shiftId], references: [id])
+  shiftId      String?
+  date         DateTime         @db.Date
+  status       AttendanceStatus @default(PRESENT)
+  dayType      DayType          @default(FULL)
+  clockInAt    DateTime?
+  clockOutAt   DateTime?
+  isApproved   Boolean          @default(false)
+  approvedBy   User?            @relation("AttendanceApprovedBy", fields: [approvedById], references: [id])
+  approvedById String?
+  note         String?
+
+  breaks AttendanceBreak[]
+
+  @@unique([employeeId, date])
+  @@index([employeeId])
+  @@index([date])
+}
+
+model AttendanceBreak {
+  id           String     @id @default(cuid())
+  attendance   Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  attendanceId String
+  startAt      DateTime
+  endAt        DateTime?
+
+  @@index([attendanceId])
+}
+
+model LeaveRequest {
+  id           String      @id @default(cuid())
+  employee     Employee    @relation(fields: [employeeId], references: [userId])
+  employeeId   String
+  startDate    DateTime    @db.Date
+  endDate      DateTime    @db.Date
+  reason       String?
+  status       LeaveStatus @default(PENDING)
+  reviewedBy   User?       @relation("LeaveReviewedBy", fields: [reviewedById], references: [id])
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime    @default(now())
+
+  @@index([employeeId])
+  @@index([status])
+}
+
+model SalaryAdvance {
+  id          String   @id @default(cuid())
+  employee    Employee @relation(fields: [employeeId], references: [userId])
+  employeeId  String
+  totalAmount Int
+  note        String?
+  createdBy   User     @relation("AdvanceCreatedBy", fields: [createdById], references: [id])
+  createdById String
+  createdAt   DateTime @default(now())
+
+  instalments AdvanceInstalment[]
+
+  @@index([employeeId])
+}
+
+model AdvanceInstalment {
+  id        String        @id @default(cuid())
+  advance   SalaryAdvance @relation(fields: [advanceId], references: [id], onDelete: Cascade)
+  advanceId String
+  month     Int
+  year      Int
+  amount    Int
+  deducted  Boolean       @default(false)
+
+  @@index([advanceId])
+  @@index([year, month])
+}
+
+model EmployeeFine {
+  id          String   @id @default(cuid())
+  employee    Employee @relation(fields: [employeeId], references: [userId])
+  employeeId  String
+  amount      Int
+  reason      String
+  deductMonth Int
+  deductYear  Int
+  deducted    Boolean  @default(false)
+  createdBy   User     @relation("FineCreatedBy", fields: [createdById], references: [id])
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([deductYear, deductMonth])
+}
+
+model AdHocBonus {
+  id          String   @id @default(cuid())
+  employee    Employee @relation(fields: [employeeId], references: [userId])
+  employeeId  String
+  amount      Int
+  label       String
+  month       Int
+  year        Int
+  createdBy   User     @relation("BonusCreatedBy", fields: [createdById], references: [id])
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([year, month])
+}
+
+model Payroll {
+  id         String        @id @default(cuid())
+  month      Int
+  year       Int
+  status     PayrollStatus @default(DRAFT)
+  lockedAt   DateTime?
+  lockedBy   User?         @relation("PayrollLockedBy", fields: [lockedById], references: [id])
+  lockedById String?
+  createdAt  DateTime      @default(now())
+
+  items PayrollItem[]
+
+  @@unique([month, year])
+}
+
+model PayrollItem {
+  id                 String   @id @default(cuid())
+  payroll            Payroll  @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  payrollId          String
+  employee           Employee @relation(fields: [employeeId], references: [userId])
+  employeeId         String
+  basicSalary        Int
+  workingDays        Int
+  absentDays         Int
+  otDays             Int
+  attendanceBonusAmt Int
+  dailyRate          Int
+  absenceDeduction   Int
+  otPremium          Int
+  adHocBonuses       Int
+  advanceDeduction   Int
+  fineDeduction      Int
+  netPay             Int
+
+  @@unique([payrollId, employeeId])
+  @@index([payrollId])
+  @@index([employeeId])
+}
+
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
+
+model Setting {
+  key       String   @id
+  valueJson Json
+  updatedAt DateTime @updatedAt
+}
