@@ -1,5 +1,5 @@
 import { prisma as db } from "./db";
-import type { PaymentMethod, Prisma } from "@prisma/client";
+import type { OrderChannel, PaymentMethod, Prisma } from "@prisma/client";
 
 class OrderActionError extends Error {}
 
@@ -11,9 +11,12 @@ export type CreateOrderItemInput = {
 };
 
 export type CreateOrderInput = {
-  cashierId: string;
+  channel?: OrderChannel; // defaults to POS
+  cashierId?: string; // staff-placed (POS) orders
+  customerId?: string; // logged-in customer (online orders)
   customerName?: string;
   customerPhone?: string;
+  shippingAddress?: string;
   paymentMethod?: PaymentMethod;
   discount?: number;
   notes?: string;
@@ -121,19 +124,33 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
 
       const discount = input.discount ?? 0;
       const total = Math.max(0, subtotal - discount);
+      const channel = input.channel ?? "POS";
+
+      let actorId = input.cashierId;
+      if (!actorId) {
+        const systemUser = await tx.user.findFirst({ where: { isSystemAccount: true }, select: { id: true } });
+        if (!systemUser) throw new OrderActionError("System account not configured");
+        actorId = systemUser.id;
+      }
+
+      // POS sales are paid at the counter immediately; online orders are paid
+      // on delivery (COD) or once staff confirms the transfer proof.
+      const paidAt = channel === "POS" && input.paymentMethod ? new Date() : null;
 
       const order = await tx.order.create({
         data: {
-          channel: "POS",
+          channel,
           status: "PENDING",
           cashierId: input.cashierId,
+          customerId: input.customerId,
           customerName: input.customerName,
           customerPhone: input.customerPhone,
+          shippingAddress: input.shippingAddress,
           subtotal,
           discount,
           total,
           paymentMethod: input.paymentMethod,
-          paidAt: input.paymentMethod ? new Date() : null,
+          paidAt,
           notes: input.notes,
         },
       });
@@ -165,16 +182,21 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
         });
 
         if (item.productType === "REGULAR" && item.variantId) {
-          const res = await deductVariantStock(tx, item.variantId, item.qty, input.cashierId, orderItem.id);
+          const res = await deductVariantStock(tx, item.variantId, item.qty, actorId, orderItem.id);
           if (!res.ok) throw new OrderActionError(`${item.productName}: ${res.error}`);
         }
       }
 
       await tx.orderLog.create({
-        data: { orderId: order.id, actorId: input.cashierId, status: "PENDING", note: "Order created at POS" },
+        data: {
+          orderId: order.id,
+          actorId: input.cashierId ?? null,
+          status: "PENDING",
+          note: channel === "POS" ? "Order created at POS" : "Order placed online",
+        },
       });
 
-      if (input.paymentMethod && input.paymentMethod !== "COD") {
+      if (channel === "POS" && input.paymentMethod && input.paymentMethod !== "COD") {
         await tx.cashEntry.create({
           data: {
             type: "IN",
@@ -183,7 +205,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
             source: "SALE",
             referenceId: order.id,
             date: new Date(),
-            recordedById: input.cashierId,
+            recordedById: input.cashierId!,
           },
         });
       }
