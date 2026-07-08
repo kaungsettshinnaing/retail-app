@@ -6,6 +6,7 @@ const TABS: TabDef[] = [
   { href: "/admin/categories", label: "Categories" },
   { href: "/admin/products",   label: "Products" },
   { href: "/admin/suppliers",  label: "Suppliers" },
+  { href: "/admin/warehouse",  label: "Warehouse" },
   { href: "/admin/users",      label: "Users" },
   { href: "/admin/settings",   label: "Settings" },
 ];
