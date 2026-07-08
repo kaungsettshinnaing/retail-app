@@ -3,6 +3,7 @@ import TabNav from "@/components/TabNav";
 import type { TabDef } from "@/components/TabNav";
 
 const TABS: TabDef[] = [
+  { href: "/pos",          label: "New Sale" },
   { href: "/pos/invoices", label: "Supplier Invoices" },
 ];
 
