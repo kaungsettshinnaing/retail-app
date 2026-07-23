@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatMoney } from "@/lib/format";
 import { submitPosOrder } from "./actions";
@@ -38,7 +38,9 @@ function variantOptionLabel(optionValues: unknown): string {
   return opts && Object.keys(opts).length ? Object.values(opts).join(" / ") : "";
 }
 
-export default function POSScreen({ catalog }: { catalog: Product[] }) {
+type InitialLine = { productId: string; price: number } | null;
+
+export default function POSScreen({ catalog, initialLine = null }: { catalog: Product[]; initialLine?: InitialLine }) {
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [customerName, setCustomerName] = useState("");
@@ -48,7 +50,23 @@ export default function POSScreen({ catalog }: { catalog: Product[] }) {
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [suggestedPrice, setSuggestedPrice] = useState<InitialLine>(initialLine);
   const router = useRouter();
+
+  // Coming from a converted price inquiry: if the product has exactly one
+  // variant, add it straight to the cart at the quoted price. Otherwise
+  // surface the product via search and let addToCart prefill the prompt.
+  useEffect(() => {
+    if (!initialLine) return;
+    const product = catalog.find((p) => p.id === initialLine.productId);
+    if (!product) return;
+    setSearch(product.name);
+    if (product.variants.length === 1) {
+      addToCart(product, product.variants[0], initialLine.price);
+      setSuggestedPrice(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -66,17 +84,24 @@ export default function POSScreen({ catalog }: { catalog: Product[] }) {
       .filter((p) => p.variants.length > 0);
   }, [search, catalog]);
 
-  function addToCart(product: Product, variant: Variant) {
+  function addToCart(product: Product, variant: Variant, presetPrice?: number) {
     let unitPrice = variant.price;
     if (product.type === "CONTACT_PRICE") {
-      const input = prompt(`Enter agreed price for ${product.name} (${variant.sku}):`);
-      if (input === null) return;
-      const parsed = Number(input);
-      if (!Number.isFinite(parsed) || parsed <= 0) {
-        alert("Enter a valid price");
-        return;
+      if (presetPrice != null) {
+        unitPrice = presetPrice;
+      } else {
+        const defaultValue =
+          suggestedPrice?.productId === product.id ? String(suggestedPrice.price) : undefined;
+        const input = prompt(`Enter agreed price for ${product.name} (${variant.sku}):`, defaultValue);
+        if (input === null) return;
+        const parsed = Number(input);
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+          alert("Enter a valid price");
+          return;
+        }
+        unitPrice = parsed;
+        if (suggestedPrice?.productId === product.id) setSuggestedPrice(null);
       }
-      unitPrice = parsed;
     }
     if (unitPrice == null) {
       alert(`${product.name} has no price set`);
@@ -155,6 +180,11 @@ export default function POSScreen({ catalog }: { catalog: Product[] }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <div className="lg:col-span-2 space-y-3">
+        {suggestedPrice && (
+          <div className="rounded bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+            This product was quoted at {formatMoney(suggestedPrice.price)} — pick the variant below to add it at that price.
+          </div>
+        )}
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}

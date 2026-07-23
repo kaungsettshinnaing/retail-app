@@ -57,18 +57,20 @@ export async function createExpense(formData: FormData): Promise<ActionResult> {
       },
     });
 
-    await tx.cashEntry.create({
-      data: {
-        type: "OUT",
-        amount: expense.amount,
-        description: `Expense: ${expense.description}`,
-        source: "EXPENSE",
-        referenceId: expense.id,
-        expenseId: expense.id,
-        date,
-        recordedById: session.id,
-      },
-    });
+    if (paymentMethod === "CASH") {
+      await tx.cashEntry.create({
+        data: {
+          type: "OUT",
+          amount: expense.amount,
+          description: `Expense: ${expense.description}`,
+          source: "EXPENSE",
+          referenceId: expense.id,
+          expenseId: expense.id,
+          date,
+          recordedById: session.id,
+        },
+      });
+    }
   });
 
   revalidatePath("/accounting/expenses");

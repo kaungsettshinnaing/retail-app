@@ -39,7 +39,12 @@ export default async function InquiryDetailPage({
         )}
       </div>
 
-      <InquiryDetail inquiryId={inquiry.id} status={inquiry.status} quotedPrice={inquiry.quotedPrice} />
+      <InquiryDetail
+        inquiryId={inquiry.id}
+        productId={inquiry.productId}
+        status={inquiry.status}
+        quotedPrice={inquiry.quotedPrice}
+      />
     </div>
   );
 }

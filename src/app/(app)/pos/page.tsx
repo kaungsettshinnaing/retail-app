@@ -4,7 +4,18 @@ import POSScreen from "./POSScreen";
 
 export const dynamic = "force-dynamic";
 
-export default async function PosPage() {
+export default async function PosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ inquiryProductId?: string; inquiryPrice?: string }>;
+}) {
+  const { inquiryProductId, inquiryPrice } = await searchParams;
+  const price = Number(inquiryPrice);
+  const initialLine =
+    inquiryProductId && Number.isFinite(price) && price > 0
+      ? { productId: inquiryProductId, price }
+      : null;
+
   const products = await db.product.findMany({
     where: { isActive: true },
     orderBy: { name: "asc" },
@@ -33,5 +44,5 @@ export default async function PosPage() {
     })),
   }));
 
-  return <POSScreen catalog={catalog} />;
+  return <POSScreen catalog={catalog} initialLine={initialLine} />;
 }

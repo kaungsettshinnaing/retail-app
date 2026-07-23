@@ -7,10 +7,12 @@ import { quoteInquiry, closeInquiry, markInquiryConverted } from "../actions";
 
 export default function InquiryDetail({
   inquiryId,
+  productId,
   status,
   quotedPrice,
 }: {
   inquiryId: string;
+  productId: string;
   status: string;
   quotedPrice: number | null;
 }) {
@@ -25,6 +27,22 @@ export default function InquiryDetail({
       const res = await action();
       if (!res.ok) setError(res.error ?? "Something went wrong");
       else router.refresh();
+    });
+  }
+
+  function convertAndOpenPos() {
+    setError("");
+    startTransition(async () => {
+      const res = await markInquiryConverted(inquiryId);
+      if (!res.ok) {
+        setError(res.error ?? "Something went wrong");
+        return;
+      }
+      const params = new URLSearchParams({
+        inquiryProductId: productId,
+        inquiryPrice: String(quotedPrice ?? 0),
+      });
+      router.push(`/pos?${params.toString()}`);
     });
   }
 
@@ -59,8 +77,8 @@ export default function InquiryDetail({
             Contact the customer, then create their order at POS with this price. Once placed, mark this inquiry converted.
           </p>
           <div className="flex gap-2">
-            <button disabled={pending} onClick={() => run(() => markInquiryConverted(inquiryId))} className="btn-primary">
-              Mark Converted
+            <button disabled={pending} onClick={convertAndOpenPos} className="btn-primary">
+              Convert &amp; Open in POS
             </button>
             <button disabled={pending} onClick={() => run(() => closeInquiry(inquiryId))} className="btn-outline">
               Close Inquiry
