@@ -196,7 +196,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
         },
       });
 
-      if (channel === "POS" && input.paymentMethod && input.paymentMethod !== "COD") {
+      if (channel === "POS" && input.paymentMethod === "CASH") {
         await tx.cashEntry.create({
           data: {
             type: "IN",
@@ -205,7 +205,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
             source: "SALE",
             referenceId: order.id,
             date: new Date(),
-            recordedById: input.cashierId!,
+            recordedById: actorId,
           },
         });
       }

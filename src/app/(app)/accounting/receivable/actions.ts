@@ -26,18 +26,6 @@ export async function confirmPaymentProof(proofId: string): Promise<ActionResult
     if (!order.paidAt) {
       await tx.order.update({ where: { id: order.id }, data: { paidAt: new Date() } });
     }
-
-    await tx.cashEntry.create({
-      data: {
-        type: "IN",
-        amount: order.total,
-        description: `Online sale ${order.id}`,
-        source: "SALE",
-        referenceId: order.id,
-        date: new Date(),
-        recordedById: session.id,
-      },
-    });
   });
 
   revalidatePath("/accounting/receivable");

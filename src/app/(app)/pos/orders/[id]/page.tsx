@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma as db } from "@/lib/db";
 import { formatMoney, formatDateTime } from "@/lib/format";
+import CancelOrderButton from "./CancelOrderButton";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,8 @@ export default async function OrderDetailPage({
         </div>
         <span className={`badge ${STATUS_STYLES[order.status] ?? ""}`}>{order.status}</span>
       </div>
+
+      <CancelOrderButton orderId={order.id} orderStatus={order.status} />
 
       <div className="card overflow-hidden p-0">
         <table className="w-full">

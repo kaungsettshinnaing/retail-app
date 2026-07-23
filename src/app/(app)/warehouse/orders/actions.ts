@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma as db } from "@/lib/db";
 import { requireAnyRole } from "@/lib/auth";
+import { adjustStock } from "@/lib/inventory";
 import type { ActionResult } from "@/lib/action-result";
 
 async function guard() {
@@ -74,11 +75,77 @@ export async function markItemUnavailable(orderItemId: string): Promise<ActionRe
       await tx.order.update({ where: { id: item.order.id }, data: { status: "PICKING", pickedAt: new Date() } });
       await tx.orderLog.create({ data: { orderId: item.order.id, actorId: session.id, status: "PICKING" } });
     }
+
+    if (item.variantId) {
+      const movements = await tx.stockMovement.findMany({
+        where: { orderItemId: item.id, type: "SALE_OUT" },
+        include: { stockEntry: { select: { locationId: true } } },
+      });
+      for (const mv of movements) {
+        if (!mv.stockEntry) continue;
+        await adjustStock(tx, {
+          variantId: item.variantId,
+          locationId: mv.stockEntry.locationId,
+          qtyDelta: -mv.qty,
+          type: "RETURN_IN",
+          actorId: session.id,
+          orderItemId: item.id,
+        });
+      }
+    }
+
     await tx.orderItem.update({ where: { id: item.id }, data: { status: "UNAVAILABLE" } });
   });
 
   revalidatePath(`/warehouse/orders/${item.order.id}`);
   revalidatePath("/warehouse/orders");
+  return { ok: true };
+}
+
+export async function cancelOrder(orderId: string): Promise<ActionResult> {
+  const session = await fulfilmentGuard();
+
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    include: { items: true },
+  });
+  if (!order) return { ok: false, error: "Order not found" };
+  if (!["PENDING", "PICKING", "PACKED", "READY"].includes(order.status)) {
+    return { ok: false, error: "This order can no longer be cancelled" };
+  }
+
+  await db.$transaction(async (tx) => {
+    for (const item of order.items) {
+      if (item.productType !== "REGULAR" || !item.variantId) continue;
+      if (item.status !== "PENDING" && item.status !== "PICKED") continue;
+
+      const movements = await tx.stockMovement.findMany({
+        where: { orderItemId: item.id, type: "SALE_OUT" },
+        include: { stockEntry: { select: { locationId: true } } },
+      });
+      for (const mv of movements) {
+        if (!mv.stockEntry) continue;
+        await adjustStock(tx, {
+          variantId: item.variantId,
+          locationId: mv.stockEntry.locationId,
+          qtyDelta: -mv.qty,
+          type: "RETURN_IN",
+          actorId: session.id,
+          orderItemId: item.id,
+        });
+      }
+    }
+
+    await tx.order.update({
+      where: { id: orderId },
+      data: { status: "CANCELLED", cancelledAt: new Date() },
+    });
+    await tx.orderLog.create({ data: { orderId, actorId: session.id, status: "CANCELLED" } });
+  });
+
+  revalidatePath(`/warehouse/orders/${orderId}`);
+  revalidatePath("/warehouse/orders");
+  revalidatePath(`/pos/orders/${orderId}`);
   return { ok: true };
 }
 
