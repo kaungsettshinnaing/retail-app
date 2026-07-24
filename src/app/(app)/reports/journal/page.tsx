@@ -29,6 +29,25 @@ export default async function JournalReportPage({
     { debit: 0, credit: 0 },
   );
 
+  // Daily ins/outs — "in" = net revenue recognized that day (credits to
+  // REVENUE accounts minus contra-revenue debits, e.g. Discounts &
+  // Allowances), "out" = expenses recognized that day (debits to EXPENSE
+  // accounts, incl. COGS and payroll). Exactly how the P&L above is
+  // derived, just broken out per day instead of summed over the range.
+  const dailyMap = new Map<string, { in: number; out: number }>();
+  for (const e of entries) {
+    const dayKey = e.date.toISOString().slice(0, 10);
+    const row = dailyMap.get(dayKey) ?? { in: 0, out: 0 };
+    for (const l of e.lines) {
+      if (l.account.type === "REVENUE") row.in += l.credit - l.debit;
+      if (l.account.type === "EXPENSE") row.out += l.debit - l.credit;
+    }
+    dailyMap.set(dayKey, row);
+  }
+  const dailyRows = Array.from(dailyMap.entries())
+    .map(([date, v]) => ({ date, ...v }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -57,6 +76,46 @@ export default async function JournalReportPage({
       {entries.length === 0 ? (
         <div className="card p-6 text-center text-gray-400">No journal entries in this period.</div>
       ) : (
+        <>
+        <div className="card overflow-hidden p-0">
+          <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Daily ins & outs
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 text-xs text-gray-500">
+                <th className="py-2 px-4 text-left font-medium">Date</th>
+                <th className="py-2 px-4 text-right font-medium">In</th>
+                <th className="py-2 px-4 text-right font-medium">Out</th>
+                <th className="py-2 px-4 text-right font-medium">Net</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {dailyRows.map((d) => {
+                const net = d.in - d.out;
+                return (
+                  <tr key={d.date}>
+                    <td className="py-2 px-4 text-gray-700">{d.date}</td>
+                    <td className="py-2 px-4 text-right tabular-nums text-green-700">{formatMoney(d.in)}</td>
+                    <td className="py-2 px-4 text-right tabular-nums text-red-700">{formatMoney(d.out)}</td>
+                    <td className={`py-2 px-4 text-right tabular-nums font-semibold ${net >= 0 ? "text-green-700" : "text-red-700"}`}>
+                      {net >= 0 ? "+" : ""}{formatMoney(net)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-gray-200 font-bold">
+                <td className="py-2 px-4">Total</td>
+                <td className="py-2 px-4 text-right tabular-nums text-green-700">{formatMoney(dailyRows.reduce((s, d) => s + d.in, 0))}</td>
+                <td className="py-2 px-4 text-right tabular-nums text-red-700">{formatMoney(dailyRows.reduce((s, d) => s + d.out, 0))}</td>
+                <td className="py-2 px-4 text-right tabular-nums">{formatMoney(dailyRows.reduce((s, d) => s + (d.in - d.out), 0))}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
         <div className="space-y-3">
           {entries.map((e) => (
             <div key={e.id} className="card overflow-hidden p-0">
@@ -81,6 +140,7 @@ export default async function JournalReportPage({
             </div>
           ))}
         </div>
+        </>
       )}
 
       <div className={`card flex items-center justify-between p-4 ${totals.debit === totals.credit ? "" : "border-red-300 bg-red-50"}`}>
