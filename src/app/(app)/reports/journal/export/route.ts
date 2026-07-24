@@ -14,11 +14,22 @@ export async function GET(req: NextRequest) {
     searchParams.get("to") ?? undefined,
   );
 
-  const entries = await db.journalEntry.findMany({
-    where: { date: { gte: from, lt: to } },
-    include: { lines: { include: { account: true }, orderBy: { id: "asc" } } },
-    orderBy: { entryNo: "asc" },
-  });
+  const [entries, priorLines] = await Promise.all([
+    db.journalEntry.findMany({
+      where: { date: { gte: from, lt: to } },
+      include: { lines: { include: { account: true }, orderBy: { id: "asc" } } },
+      orderBy: { entryNo: "asc" },
+    }),
+    db.journalLine.findMany({
+      where: { entry: { date: { lt: from } } },
+      select: { debit: true, credit: true, account: { select: { type: true } } },
+    }),
+  ]);
+  const openingBalance = priorLines.reduce((sum, l) => {
+    if (l.account.type === "REVENUE") return sum + (l.credit - l.debit);
+    if (l.account.type === "EXPENSE") return sum - (l.debit - l.credit);
+    return sum;
+  }, 0);
 
   const workbook = new ExcelJS.Workbook();
 
@@ -75,16 +86,21 @@ export async function GET(req: NextRequest) {
     { header: "In", key: "in", width: 16 },
     { header: "Out", key: "out", width: 16 },
     { header: "Net", key: "net", width: 16 },
+    { header: "Balance", key: "balance", width: 16 },
   ];
   dailySheet.getRow(1).font = { bold: true };
+  const openingRow = dailySheet.addRow({ date: "Balance carried over", balance: openingBalance });
+  openingRow.font = { italic: true };
   let dailyInTotal = 0;
   let dailyOutTotal = 0;
+  let runningBalance = openingBalance;
   for (const [date, row] of [...dailyTotals.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-    dailySheet.addRow({ date, in: row.in, out: row.out, net: row.in - row.out });
+    runningBalance += row.in - row.out;
+    dailySheet.addRow({ date, in: row.in, out: row.out, net: row.in - row.out, balance: runningBalance });
     dailyInTotal += row.in;
     dailyOutTotal += row.out;
   }
-  const dailyTotalRow = dailySheet.addRow({ date: "TOTAL", in: dailyInTotal, out: dailyOutTotal, net: dailyInTotal - dailyOutTotal });
+  const dailyTotalRow = dailySheet.addRow({ date: "TOTAL", in: dailyInTotal, out: dailyOutTotal, net: dailyInTotal - dailyOutTotal, balance: runningBalance });
   dailyTotalRow.font = { bold: true };
 
   const tbSheet = workbook.addWorksheet("Trial Balance");
