@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma as db } from "@/lib/db";
 import { requireAnyRole } from "@/lib/auth";
 import type { ActionResult } from "@/lib/action-result";
+import { postSupplierInvoiceReceived } from "@/lib/journal-postings";
 
 async function guard() {
   return requireAnyRole(["CASHIER", "MANAGER", "ADMIN"]);
@@ -157,8 +158,8 @@ export async function submitInvoice(invoiceId: string): Promise<ActionResult> {
     0
   );
 
-  await db.$transaction([
-    db.supplierInvoice.update({
+  await db.$transaction(async (tx) => {
+    await tx.supplierInvoice.update({
       where: { id: invoiceId },
       data: {
         status: "SUBMITTED",
@@ -166,11 +167,12 @@ export async function submitInvoice(invoiceId: string): Promise<ActionResult> {
         cashierId: session.id,
         cashierSubmittedAt: new Date(),
       },
-    }),
-    db.supplierInvoiceLog.create({
+    });
+    await tx.supplierInvoiceLog.create({
       data: { invoiceId, actorId: session.id, action: "CASHIER_SUBMITTED" },
-    }),
-  ]);
+    });
+    await postSupplierInvoiceReceived(tx, { id: invoiceId, totalAmount, invoiceDate: invoice.invoiceDate });
+  });
 
   revalidatePath("/pos/invoices");
   revalidatePath(`/pos/invoices/${invoiceId}`);

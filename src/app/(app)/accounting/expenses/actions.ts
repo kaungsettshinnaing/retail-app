@@ -6,6 +6,7 @@ import { requireAnyRole } from "@/lib/auth";
 import { saveUpload } from "@/lib/upload";
 import type { ActionResult } from "@/lib/action-result";
 import type { PaymentMethod } from "@prisma/client";
+import { postExpenseEntry } from "@/lib/journal-postings";
 
 async function guard() {
   return requireAnyRole(["MANAGER", "ADMIN"]);
@@ -56,6 +57,7 @@ export async function createExpense(formData: FormData): Promise<ActionResult> {
         recordedById: session.id,
       },
     });
+    await postExpenseEntry(tx, expense);
 
     if (paymentMethod === "CASH") {
       await tx.cashEntry.create({

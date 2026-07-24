@@ -22,8 +22,8 @@ enum Role {
 }
 
 enum ProductType {
-  REGULAR       // tracked stock, quantity-limited
-  PASS_THROUGH  // no stock limit, ordered from supplier on demand
+  REGULAR // tracked stock, quantity-limited
+  PASS_THROUGH // no stock limit, ordered from supplier on demand
   CONTACT_PRICE // volatile price, inquiry/quotation workflow
 }
 
@@ -50,17 +50,17 @@ enum OrderItemStatus {
 
 enum InvoiceStatus {
   DRAFT
-  SUBMITTED  // cashier entered invoice data
-  COUNTING   // storeman counting incoming stock
-  PLACED     // stock assigned to warehouse locations
+  SUBMITTED // cashier entered invoice data
+  COUNTING // storeman counting incoming stock
+  PLACED // stock assigned to warehouse locations
   COMPLETE
 }
 
 enum StockMovementType {
-  INVOICE_IN  // from supplier invoice
-  SALE_OUT    // from order
-  ADJUSTMENT  // manual correction
-  RETURN_IN   // returned stock
+  INVOICE_IN // from supplier invoice
+  SALE_OUT // from order
+  ADJUSTMENT // manual correction
+  RETURN_IN // returned stock
 }
 
 enum InquiryStatus {
@@ -134,18 +134,18 @@ model User {
   updatedAt       DateTime @updatedAt
 
   // POS relations
-  posOrders        Order[]           @relation("OrderCashier")
-  invoicesEntered  SupplierInvoice[] @relation("InvoiceCashier")
-  invoicesCounted  SupplierInvoice[] @relation("InvoiceCounter")
-  stockPicks       StockPick[]       @relation("PickedBy")
-  stockMovements   StockMovement[]   @relation("MovementActor")
-  inquiryQuotes    PriceInquiry[]    @relation("QuotedBy")
-  proofConfirmed   OrderPaymentProof[] @relation("ProofConfirmer")
-  invoiceLogs      SupplierInvoiceLog[] @relation("InvoiceLogActor")
-  orderLogs        OrderLog[]        @relation("OrderLogActor")
+  posOrders       Order[]              @relation("OrderCashier")
+  invoicesEntered SupplierInvoice[]    @relation("InvoiceCashier")
+  invoicesCounted SupplierInvoice[]    @relation("InvoiceCounter")
+  stockPicks      StockPick[]          @relation("PickedBy")
+  stockMovements  StockMovement[]      @relation("MovementActor")
+  inquiryQuotes   PriceInquiry[]       @relation("QuotedBy")
+  proofConfirmed  OrderPaymentProof[]  @relation("ProofConfirmer")
+  invoiceLogs     SupplierInvoiceLog[] @relation("InvoiceLogActor")
+  orderLogs       OrderLog[]           @relation("OrderLogActor")
 
   // Accounting relations
-  expensesRecorded  Expense[]    @relation("ExpenseRecorder")
+  expensesRecorded    Expense[]   @relation("ExpenseRecorder")
   cashEntriesRecorded CashEntry[] @relation("CashEntryRecorder")
 
   // HR relations
@@ -163,24 +163,24 @@ model User {
 // ---------------------------------------------------------------------------
 
 model WarehouseArea {
-  id        String           @id @default(cuid())
-  name      String           @unique
-  sortOrder Int              @default(0)
-  isActive  Boolean          @default(true)
+  id        String  @id @default(cuid())
+  name      String  @unique
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
 
-  shelves   WarehouseShelf[]
-  sections  WarehouseSection[]
+  shelves  WarehouseShelf[]
+  sections WarehouseSection[]
 }
 
 model WarehouseShelf {
-  id        String             @id @default(cuid())
-  area      WarehouseArea      @relation(fields: [areaId], references: [id])
+  id        String        @id @default(cuid())
+  area      WarehouseArea @relation(fields: [areaId], references: [id])
   areaId    String
   name      String
-  sortOrder Int                @default(0)
-  isActive  Boolean            @default(true)
+  sortOrder Int           @default(0)
+  isActive  Boolean       @default(true)
 
-  sections  WarehouseSection[]
+  sections WarehouseSection[]
 
   @@unique([areaId, name])
   @@index([areaId])
@@ -196,9 +196,9 @@ model WarehouseSection {
   sortOrder Int             @default(0)
   isActive  Boolean         @default(true)
 
-  stockEntries   StockEntry[]
-  invoiceItems   SupplierInvoiceItem[] @relation("ItemLocation")
-  stockPicks     StockPick[]
+  stockEntries StockEntry[]
+  invoiceItems SupplierInvoiceItem[] @relation("ItemLocation")
+  stockPicks   StockPick[]
 
   @@unique([areaId, shelfId, name])
   @@index([areaId])
@@ -232,11 +232,11 @@ model Product {
   category      Category?   @relation(fields: [categoryId], references: [id])
   categoryId    String?
   imageUrl      String?
-  images        String[]    // additional image URLs
+  images        String[] // additional image URLs
   isActive      Boolean     @default(true)
   isOnline      Boolean     @default(true) // show on public store
   unit          String      @default("unit") // pcs, kg, box, etc.
-  lowStockAlert Int?        // alert threshold for REGULAR type
+  lowStockAlert Int? // alert threshold for REGULAR type
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
@@ -256,7 +256,7 @@ model ProductOption {
   id        String  @id @default(cuid())
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId String
-  name      String  // "Size" | "Color" etc.
+  name      String // "Size" | "Color" etc.
   sortOrder Int     @default(0)
 
   @@unique([productId, name])
@@ -264,16 +264,16 @@ model ProductOption {
 }
 
 model ProductVariant {
-  id           String  @id @default(cuid())
-  product      Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId    String
-  sku          String  @unique
-  optionValues Json    // {"Size": "Large", "Color": "Red"}
-  price        Int?    // null for CONTACT_PRICE
+  sku          String   @unique
+  optionValues Json // {"Size": "Large", "Color": "Red"}
+  price        Int? // null for CONTACT_PRICE
   comparePrice Int?
   imageUrl     String?
-  isActive     Boolean @default(true)
-  sortOrder    Int     @default(0)
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -316,10 +316,10 @@ model StockMovement {
   stockEntry    StockEntry?       @relation(fields: [stockEntryId], references: [id])
   stockEntryId  String?
   type          StockMovementType
-  qty           Int               // positive = in, negative = out
+  qty           Int // positive = in, negative = out
   previousQty   Int?
-  invoiceItemId String?           // set for INVOICE_IN
-  orderItemId   String?           // set for SALE_OUT
+  invoiceItemId String? // set for INVOICE_IN
+  orderItemId   String? // set for SALE_OUT
   actorId       String
   actor         User              @relation("MovementActor", fields: [actorId], references: [id])
   note          String?
@@ -336,42 +336,42 @@ model StockMovement {
 // ---------------------------------------------------------------------------
 
 model Supplier {
-  id        String            @id @default(cuid())
+  id        String   @id @default(cuid())
   name      String
   contact   String?
   phone     String?
   email     String?
   address   String?
   notes     String?
-  isActive  Boolean           @default(true)
-  createdAt DateTime          @default(now())
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
 
   invoices SupplierInvoice[]
   expenses Expense[]
 }
 
 model SupplierInvoice {
-  id                 String        @id @default(cuid())
-  invoiceNo          String?
-  supplier           Supplier?     @relation(fields: [supplierId], references: [id])
-  supplierId         String?
-  status             InvoiceStatus @default(DRAFT)
-  invoiceDate        DateTime
-  totalAmount        Int?
-  paymentMethod      PaymentMethod?
-  paidAt             DateTime?
-  notes              String?
+  id            String         @id @default(cuid())
+  invoiceNo     String?
+  supplier      Supplier?      @relation(fields: [supplierId], references: [id])
+  supplierId    String?
+  status        InvoiceStatus  @default(DRAFT)
+  invoiceDate   DateTime
+  totalAmount   Int?
+  paymentMethod PaymentMethod?
+  paidAt        DateTime?
+  notes         String?
 
   cashierId          String?
-  cashier            User?         @relation("InvoiceCashier", fields: [cashierId], references: [id])
+  cashier            User?     @relation("InvoiceCashier", fields: [cashierId], references: [id])
   cashierSubmittedAt DateTime?
 
   counterId          String?
-  counter            User?         @relation("InvoiceCounter", fields: [counterId], references: [id])
+  counter            User?     @relation("InvoiceCounter", fields: [counterId], references: [id])
   counterSubmittedAt DateTime?
 
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   items SupplierInvoiceItem[]
   logs  SupplierInvoiceLog[]
@@ -382,14 +382,14 @@ model SupplierInvoice {
 }
 
 model SupplierInvoiceItem {
-  id          String           @id @default(cuid())
-  invoice     SupplierInvoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  id          String            @id @default(cuid())
+  invoice     SupplierInvoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   invoiceId   String
-  product     Product?         @relation(fields: [productId], references: [id])
+  product     Product?          @relation(fields: [productId], references: [id])
   productId   String?
-  variant     ProductVariant?  @relation(fields: [variantId], references: [id])
+  variant     ProductVariant?   @relation(fields: [variantId], references: [id])
   variantId   String?
-  description String?          // free text for unmapped line items
+  description String? // free text for unmapped line items
   invoicedQty Int
   countedQty  Int?
   finalQty    Int?
@@ -409,7 +409,7 @@ model SupplierInvoiceLog {
   invoiceId String
   actorId   String
   actor     User            @relation("InvoiceLogActor", fields: [actorId], references: [id])
-  action    String          // CREATED | CASHIER_SUBMITTED | COUNTING | PLACED | MANAGER_RESOLVED | COMPLETE
+  action    String // CREATED | CASHIER_SUBMITTED | COUNTING | PLACED | MANAGER_RESOLVED | COMPLETE
   note      String?
   createdAt DateTime        @default(now())
 
@@ -436,34 +436,34 @@ model Customer {
 }
 
 model Order {
-  id              String        @id @default(cuid())
-  channel         OrderChannel
-  status          OrderStatus   @default(PENDING)
+  id      String       @id @default(cuid())
+  channel OrderChannel
+  status  OrderStatus  @default(PENDING)
 
-  cashierId       String?
-  cashier         User?         @relation("OrderCashier", fields: [cashierId], references: [id])
-  customerId      String?
-  customer        Customer?     @relation(fields: [customerId], references: [id])
-  customerName    String?       // for POS walk-in without account
-  customerPhone   String?
+  cashierId     String?
+  cashier       User?     @relation("OrderCashier", fields: [cashierId], references: [id])
+  customerId    String?
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  customerName  String? // for POS walk-in without account
+  customerPhone String?
 
-  subtotal        Int           @default(0)
-  discount        Int           @default(0)
-  total           Int           @default(0)
+  subtotal        Int            @default(0)
+  discount        Int            @default(0)
+  total           Int            @default(0)
   paymentMethod   PaymentMethod?
   paidAt          DateTime?
   notes           String?
   shippingAddress String?
 
-  pickedAt        DateTime?
-  packedAt        DateTime?
-  readyAt         DateTime?
-  deliveredAt     DateTime?
-  pickedUpAt      DateTime?
-  cancelledAt     DateTime?
+  pickedAt    DateTime?
+  packedAt    DateTime?
+  readyAt     DateTime?
+  deliveredAt DateTime?
+  pickedUpAt  DateTime?
+  cancelledAt DateTime?
 
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   items        OrderItem[]
   picks        StockPick[]
@@ -485,12 +485,12 @@ model OrderItem {
   productId      String
   variant        ProductVariant? @relation(fields: [variantId], references: [id])
   variantId      String?
-  productType    ProductType     // snapshot at time of order
-  productName    String          // snapshot
-  variantSku     String?         // snapshot
-  variantOptions Json?           // snapshot {"Size": "Large", "Color": "Red"}
-  unitPrice      Int?            // snapshot; null for CONTACT_PRICE until quoted
-  unitCost       Int?            // snapshot of last purchase cost (for COGS)
+  productType    ProductType // snapshot at time of order
+  productName    String // snapshot
+  variantSku     String? // snapshot
+  variantOptions Json? // snapshot {"Size": "Large", "Color": "Red"}
+  unitPrice      Int? // snapshot; null for CONTACT_PRICE until quoted
+  unitCost       Int? // snapshot of last purchase cost (for COGS)
   qty            Int             @default(1)
   status         OrderItemStatus @default(PENDING)
   notes          String?
@@ -551,24 +551,24 @@ model OrderLog {
 // ---------------------------------------------------------------------------
 
 model PriceInquiry {
-  id            String        @id @default(cuid())
-  product       Product       @relation(fields: [productId], references: [id])
-  productId     String
-  customer      Customer?     @relation(fields: [customerId], references: [id])
-  customerId    String?
-  channel       OrderChannel  @default(ONLINE)
-  status        InquiryStatus @default(OPEN)
-  contactName   String?
-  contactPhone  String?
-  contactEmail  String?
-  message       String?
-  quotedPrice   Int?
-  quotedById    String?
-  quotedBy      User?         @relation("QuotedBy", fields: [quotedById], references: [id])
-  quotedAt      DateTime?
-  notes         String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id           String        @id @default(cuid())
+  product      Product       @relation(fields: [productId], references: [id])
+  productId    String
+  customer     Customer?     @relation(fields: [customerId], references: [id])
+  customerId   String?
+  channel      OrderChannel  @default(ONLINE)
+  status       InquiryStatus @default(OPEN)
+  contactName  String?
+  contactPhone String?
+  contactEmail String?
+  message      String?
+  quotedPrice  Int?
+  quotedById   String?
+  quotedBy     User?         @relation("QuotedBy", fields: [quotedById], references: [id])
+  quotedAt     DateTime?
+  notes        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@index([status])
   @@index([productId])
@@ -579,12 +579,13 @@ model PriceInquiry {
 // ---------------------------------------------------------------------------
 
 model ExpenseCategory {
-  id        String    @id @default(cuid())
-  name      String    @unique
-  sortOrder Int       @default(0)
-  isActive  Boolean   @default(true)
+  id        String  @id @default(cuid())
+  name      String  @unique
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
 
   expenses Expense[]
+  account  Account?
 }
 
 model Expense {
@@ -614,7 +615,7 @@ model CashEntry {
   amount       Int
   description  String
   source       CashEntrySource
-  referenceId  String?         // orderId for SALE, expenseId for EXPENSE
+  referenceId  String? // orderId for SALE, expenseId for EXPENSE
   expenseId    String?         @unique
   expense      Expense?        @relation("ExpenseCashEntry", fields: [expenseId], references: [id])
   date         DateTime        @db.Date
@@ -631,10 +632,10 @@ model CashEntry {
 // ---------------------------------------------------------------------------
 
 model StaffRole {
-  id          String     @id @default(cuid())
-  name        String     @unique
+  id          String  @id @default(cuid())
+  name        String  @unique
   permissions Role[]
-  isActive    Boolean    @default(true)
+  isActive    Boolean @default(true)
 
   employees Employee[]
 }
@@ -654,7 +655,7 @@ model Employee {
   endDate          DateTime?
   basicSalary      Int        @default(0)
   attendanceBonus  Int        @default(0)
-  restDays         Int[]      // weekday numbers: 0=Sun … 6=Sat
+  restDays         Int[] // weekday numbers: 0=Sun … 6=Sat
   isActive         Boolean    @default(true)
 
   attendances   Attendance[]
@@ -668,8 +669,8 @@ model Employee {
 model Shift {
   id        String  @id @default(cuid())
   name      String  @unique // e.g. "Morning", "Afternoon", "Night"
-  startTime String  // "08:00"
-  endTime   String  // "16:00"
+  startTime String // "08:00"
+  endTime   String // "16:00"
   isActive  Boolean @default(true)
 
   attendances Attendance[]
@@ -833,4 +834,61 @@ model Setting {
   key       String   @id
   valueJson Json
   updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// General ledger — double-entry journal feeding the P&L (audit / IRD filing)
+// ---------------------------------------------------------------------------
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  REVENUE
+  EXPENSE
+}
+
+model Account {
+  id                      String           @id @default(cuid())
+  code                    String           @unique
+  name                    String
+  type                    AccountType
+  // Set only for auto-provisioned expense accounts (one per ExpenseCategory) —
+  // keeps the account in sync with its category even if the category is renamed.
+  linkedExpenseCategory   ExpenseCategory? @relation(fields: [linkedExpenseCategoryId], references: [id])
+  linkedExpenseCategoryId String?          @unique
+  isActive                Boolean          @default(true)
+  createdAt               DateTime         @default(now())
+
+  lines JournalLine[]
+}
+
+model JournalEntry {
+  id          String   @id @default(cuid())
+  entryNo     Int      @unique @default(autoincrement())
+  date        DateTime // business date the entry is posted against (not createdAt)
+  description String
+  // Traces the entry back to the transaction that generated it; the unique
+  // constraint makes posting idempotent — safe to re-run the backfill script
+  // or a retried request without ever double-posting the same source event.
+  sourceType  String
+  sourceId    String
+  createdAt   DateTime @default(now())
+
+  lines JournalLine[]
+
+  @@unique([sourceType, sourceId])
+  @@index([date])
+}
+
+model JournalLine {
+  id        String       @id @default(cuid())
+  entry     JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  entryId   String
+  account   Account      @relation(fields: [accountId], references: [id])
+  accountId String
+  debit     Int          @default(0)
+  credit    Int          @default(0)
+
+  @@index([entryId])
+  @@index([accountId])
 }

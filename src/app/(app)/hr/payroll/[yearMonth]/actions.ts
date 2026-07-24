@@ -6,6 +6,7 @@ import { requireAnyRole } from "@/lib/auth";
 import { getAttendanceSummary } from "@/lib/hr-attendance";
 import { computePayrollItem } from "@/lib/hr-payroll";
 import type { ActionResult } from "@/lib/action-result";
+import { postPayrollItem } from "@/lib/journal-postings";
 
 async function guard() {
   return requireAnyRole(["ADMIN", "MANAGER", "HR"]);
@@ -112,22 +113,26 @@ export async function lockPayroll(yearMonth: string): Promise<ActionResult> {
   if (!payroll) return { ok: false, error: "Generate the payroll before locking it" };
   if (payroll.status === "LOCKED") return { ok: false, error: "Payroll is already locked" };
 
-  await db.payroll.update({
-    where: { id: payroll.id },
-    data: { status: "LOCKED", lockedById: session.id, lockedAt: new Date() },
-  });
+  const lockedAt = new Date();
+  await db.$transaction(async (tx) => {
+    await tx.payroll.update({
+      where: { id: payroll.id },
+      data: { status: "LOCKED", lockedById: session.id, lockedAt },
+    });
 
-  const items = await db.payrollItem.findMany({ where: { payrollId: payroll.id } });
-  for (const item of items) {
-    await db.advanceInstalment.updateMany({
-      where: { advance: { employeeId: item.employeeId }, month, year },
-      data: { deducted: true },
-    });
-    await db.employeeFine.updateMany({
-      where: { employeeId: item.employeeId, deductMonth: month, deductYear: year },
-      data: { deducted: true },
-    });
-  }
+    const items = await tx.payrollItem.findMany({ where: { payrollId: payroll.id } });
+    for (const item of items) {
+      await tx.advanceInstalment.updateMany({
+        where: { advance: { employeeId: item.employeeId }, month, year },
+        data: { deducted: true },
+      });
+      await tx.employeeFine.updateMany({
+        where: { employeeId: item.employeeId, deductMonth: month, deductYear: year },
+        data: { deducted: true },
+      });
+      await postPayrollItem(tx, item, lockedAt);
+    }
+  });
 
   revalidatePath(`/hr/payroll/${yearMonth}`);
   revalidatePath("/hr/payroll");

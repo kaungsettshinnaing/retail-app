@@ -7,6 +7,7 @@ const TABS: TabDef[] = [
   { href: "/reports/sales",     label: "Sales" },
   { href: "/reports/inventory", label: "Inventory" },
   { href: "/reports/payroll",   label: "Payroll" },
+  { href: "/reports/journal",   label: "Journal" },
 ];
 
 export default async function ReportsLayout({

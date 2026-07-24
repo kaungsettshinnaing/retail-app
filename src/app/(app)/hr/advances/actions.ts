@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma as db } from "@/lib/db";
 import { requireAnyRole } from "@/lib/auth";
 import type { ActionResult } from "@/lib/action-result";
+import { postAdvanceGiven } from "@/lib/journal-postings";
 
 async function guard() {
   return requireAnyRole(["ADMIN", "MANAGER", "HR"]);
@@ -21,11 +22,14 @@ export async function createAdvance(fd: FormData): Promise<ActionResult> {
     return { ok: false, error: "Employee, amount, and deduction month/year are required" };
   }
 
-  const advance = await db.salaryAdvance.create({
-    data: { employeeId, totalAmount: amount, note: note || null, createdById: session.id },
-  });
-  await db.advanceInstalment.create({
-    data: { advanceId: advance.id, month, year, amount },
+  await db.$transaction(async (tx) => {
+    const advance = await tx.salaryAdvance.create({
+      data: { employeeId, totalAmount: amount, note: note || null, createdById: session.id },
+    });
+    await tx.advanceInstalment.create({
+      data: { advanceId: advance.id, month, year, amount },
+    });
+    await postAdvanceGiven(tx, advance);
   });
 
   revalidatePath("/hr/advances");

@@ -1,5 +1,6 @@
 import { prisma as db } from "./db";
 import type { OrderChannel, PaymentMethod, Prisma } from "@prisma/client";
+import { postOrderPaid } from "./journal-postings";
 
 class OrderActionError extends Error {}
 
@@ -155,6 +156,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
         },
       });
 
+      const costedItems: { unitCost: number | null; qty: number }[] = [];
       for (const item of prepared) {
         let unitCost: number | null = null;
         if (item.variantId) {
@@ -165,6 +167,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
           });
           unitCost = lastPurchase?.unitCost ?? null;
         }
+        costedItems.push({ unitCost, qty: item.qty });
 
         const orderItem = await tx.orderItem.create({
           data: {
@@ -208,6 +211,15 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
             recordedById: actorId,
           },
         });
+      }
+
+      if (paidAt) {
+        await postOrderPaid(
+          tx,
+          { id: order.id, subtotal, discount, total, paymentMethod: input.paymentMethod ?? null },
+          paidAt,
+          costedItems,
+        );
       }
 
       return order.id;

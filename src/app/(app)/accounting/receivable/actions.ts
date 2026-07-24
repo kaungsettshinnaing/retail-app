@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma as db } from "@/lib/db";
 import { requireAnyRole } from "@/lib/auth";
 import type { ActionResult } from "@/lib/action-result";
+import { postOrderPaid } from "@/lib/journal-postings";
 
 async function guard() {
   return requireAnyRole(["MANAGER", "ADMIN"]);
@@ -24,7 +25,15 @@ export async function confirmPaymentProof(proofId: string): Promise<ActionResult
 
     const order = proof.order;
     if (!order.paidAt) {
-      await tx.order.update({ where: { id: order.id }, data: { paidAt: new Date() } });
+      const paidAt = new Date();
+      await tx.order.update({ where: { id: order.id }, data: { paidAt } });
+      const items = await tx.orderItem.findMany({ where: { orderId: order.id }, select: { unitCost: true, qty: true } });
+      await postOrderPaid(
+        tx,
+        { id: order.id, subtotal: order.subtotal, discount: order.discount, total: order.total, paymentMethod: order.paymentMethod },
+        paidAt,
+        items,
+      );
     }
   });
 
