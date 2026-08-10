@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma as db } from "@/lib/db";
+import { requireSession } from "@/lib/auth";
 import CountingDetail from "./CountingDetail";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,7 @@ export default async function WarehouseInvoiceDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const user = await requireSession();
   const { id } = await params;
 
   const [invoice, locations] = await Promise.all([
@@ -34,5 +36,5 @@ export default async function WarehouseInvoiceDetailPage({
 
   if (!invoice) notFound();
 
-  return <CountingDetail invoice={invoice} locations={locations} />;
+  return <CountingDetail invoice={invoice} locations={locations} lang={user.language} />;
 }

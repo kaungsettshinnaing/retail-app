@@ -1,6 +1,9 @@
 import { prisma as db } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
 import { getDateRange, monthsInRange } from "@/lib/reports";
+import { requireSession } from "@/lib/auth";
+import { reportsDict } from "@/lib/i18n/dict/reports";
+import { commonDict } from "@/lib/i18n/dict/common";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +12,10 @@ export default async function PLReportPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
+  const user = await requireSession();
+  const t = reportsDict[user.language];
+  const c = commonDict[user.language];
+
   const { from: fromParam, to: toParam } = await searchParams;
   const { fromStr, toStr, from, to } = getDateRange(fromParam, toParam);
 
@@ -25,6 +32,7 @@ export default async function PLReportPage({
       id: true,
       total: true,
       items: {
+        where: { status: { not: "UNAVAILABLE" } },
         select: {
           qty: true,
           unitPrice: true,
@@ -71,15 +79,22 @@ export default async function PLReportPage({
   }
   const expenseRows = [...expenseByCategory.values()].sort((a, b) => b.amount - a.amount);
 
-  // Payroll cost — sum of PayrollItem.netPay for every calendar month touched
-  // by the selected range (Payroll/PayrollItem from the HR & Payroll module).
+  // Payroll cost — net wage expense for every calendar month touched by the
+  // selected range, matching what the General Journal posts to EXPENSE-type
+  // accounts for payroll (see postPayrollItem in journal-postings.ts):
+  // Dr Salaries & Wages Expense (netPay + advanceDeduction + fineDeduction),
+  // Cr Fines & Deductions Recovered (fineDeduction) — fineDeduction is itself
+  // an EXPENSE-type contra account, so it nets out of the ledger's payroll
+  // expense total. advanceDeduction credits Advances Receivable, a
+  // balance-sheet asset account, so it does NOT net out — it stays part of
+  // the expense. Net EXPENSE-account effect = netPay + advanceDeduction.
   const months = monthsInRange(from, to);
   const payrolls = await db.payroll.findMany({
     where: { OR: months.map((m) => ({ month: m.month, year: m.year })) },
-    include: { items: { select: { netPay: true } } },
+    include: { items: { select: { netPay: true, advanceDeduction: true } } },
   });
   const payrollCost = payrolls.reduce(
-    (sum, p) => sum + p.items.reduce((s, i) => s + i.netPay, 0),
+    (sum, p) => sum + p.items.reduce((s, i) => s + i.netPay + i.advanceDeduction, 0),
     0
   );
 
@@ -89,18 +104,18 @@ export default async function PLReportPage({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="section-title">Profit &amp; Loss</h1>
+        <h1 className="section-title">{t.plTitle}</h1>
         <form className="flex items-end gap-2" method="get">
           <div>
-            <label className="text-sm text-gray-600 block mb-1">From</label>
+            <label className="text-sm text-gray-600 block mb-1">{t.fromLabel}</label>
             <input type="date" name="from" defaultValue={fromStr} className="input" />
           </div>
           <div>
-            <label className="text-sm text-gray-600 block mb-1">To</label>
+            <label className="text-sm text-gray-600 block mb-1">{t.toLabel}</label>
             <input type="date" name="to" defaultValue={toStr} className="input" />
           </div>
           <button type="submit" className="btn-outline">
-            Filter
+            {c.filter}
           </button>
         </form>
       </div>
@@ -108,36 +123,36 @@ export default async function PLReportPage({
       {/* Summary */}
       <div className="card overflow-hidden p-0">
         <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-          Summary
+          {t.summaryTitle}
         </div>
         <table className="w-full text-sm">
           <tbody className="divide-y divide-gray-50">
             <tr>
-              <td className="py-2 px-4 text-gray-600">Revenue (net sales)</td>
+              <td className="py-2 px-4 text-gray-600">{t.revenueNetSales}</td>
               <td className="py-2 px-4 text-right font-medium">{formatMoney(revenue)}</td>
             </tr>
             <tr>
-              <td className="py-2 px-4 text-gray-600">COGS</td>
+              <td className="py-2 px-4 text-gray-600">{t.cogs}</td>
               <td className="py-2 px-4 text-right text-red-700">-{formatMoney(cogs)}</td>
             </tr>
             <tr className="bg-gray-50/50">
-              <td className="py-2 px-4 font-semibold">Gross Profit</td>
+              <td className="py-2 px-4 font-semibold">{t.grossProfit}</td>
               <td className="py-2 px-4 text-right font-semibold">{formatMoney(grossProfit)}</td>
             </tr>
             <tr>
-              <td className="py-2 px-4 text-gray-600">Expenses</td>
+              <td className="py-2 px-4 text-gray-600">{t.expenses}</td>
               <td className="py-2 px-4 text-right text-red-700">-{formatMoney(expensesTotal)}</td>
             </tr>
             <tr>
-              <td className="py-2 px-4 text-gray-600">Payroll Cost</td>
+              <td className="py-2 px-4 text-gray-600">{t.payrollCost}</td>
               <td className="py-2 px-4 text-right text-red-700">-{formatMoney(payrollCost)}</td>
             </tr>
             <tr className="bg-gray-50/50">
-              <td className="py-2 px-4 font-semibold">Operating Cost</td>
+              <td className="py-2 px-4 font-semibold">{t.operatingCost}</td>
               <td className="py-2 px-4 text-right font-semibold">{formatMoney(operatingCost)}</td>
             </tr>
             <tr>
-              <td className="py-3 px-4 text-base font-bold">Net Profit</td>
+              <td className="py-3 px-4 text-base font-bold">{t.netProfit}</td>
               <td
                 className={`py-3 px-4 text-right text-base font-bold ${
                   netProfit >= 0 ? "text-green-700" : "text-red-700"
@@ -154,14 +169,17 @@ export default async function PLReportPage({
         {/* Revenue breakdown */}
         <div className="card overflow-hidden p-0">
           <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Revenue by Category
+            {t.revenueByCategory}
           </div>
+          <p className="px-4 pt-2 text-[11px] text-gray-400">
+            {t.revenueByCategoryNote}
+          </p>
           <table className="w-full text-sm">
             <tbody className="divide-y divide-gray-50">
               {revenueRows.length === 0 && (
                 <tr>
                   <td className="py-6 px-4 text-center text-gray-400" colSpan={2}>
-                    No sales in this period.
+                    {t.noSalesInPeriod}
                   </td>
                 </tr>
               )}
@@ -178,14 +196,14 @@ export default async function PLReportPage({
         {/* Expense breakdown */}
         <div className="card overflow-hidden p-0">
           <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Expenses by Category
+            {t.expensesByCategory}
           </div>
           <table className="w-full text-sm">
             <tbody className="divide-y divide-gray-50">
               {expenseRows.length === 0 && (
                 <tr>
                   <td className="py-6 px-4 text-center text-gray-400" colSpan={2}>
-                    No expenses in this period.
+                    {t.noExpensesInPeriod}
                   </td>
                 </tr>
               )}

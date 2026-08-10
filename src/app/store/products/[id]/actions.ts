@@ -14,10 +14,10 @@ export type InquiryPayload = {
 
 export async function submitInquiry(payload: InquiryPayload): Promise<ActionResult> {
   if (!payload.contactName.trim() || !payload.contactPhone.trim()) {
-    return { ok: false, error: "Name and phone are required" };
+    return { ok: false, error: "errNamePhoneRequired" };
   }
   const product = await db.product.findUnique({ where: { id: payload.productId } });
-  if (!product) return { ok: false, error: "Product not found" };
+  if (!product) return { ok: false, error: "errProductNotFound" };
 
   const customer = await getCustomerSession();
 

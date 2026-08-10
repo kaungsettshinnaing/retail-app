@@ -18,7 +18,7 @@ export async function createFine(fd: FormData): Promise<ActionResult> {
   const deductYear = parseInt(fd.get("deductYear") as string);
 
   if (!employeeId || !amount || amount <= 0 || !reason || !deductMonth || !deductYear) {
-    return { ok: false, error: "Employee, amount, reason, and deduction month/year are required" };
+    return { ok: false, error: "fineRequiredError" };
   }
 
   await db.employeeFine.create({
@@ -32,8 +32,8 @@ export async function createFine(fd: FormData): Promise<ActionResult> {
 export async function deleteFine(id: string): Promise<ActionResult> {
   await guard();
   const fine = await db.employeeFine.findUnique({ where: { id } });
-  if (!fine) return { ok: false, error: "Fine not found" };
-  if (fine.deducted) return { ok: false, error: "Cannot delete an already-deducted fine" };
+  if (!fine) return { ok: false, error: "fineNotFound" };
+  if (fine.deducted) return { ok: false, error: "cannotDeleteDeductedFine" };
 
   await db.employeeFine.delete({ where: { id } });
   revalidatePath("/hr/fines");

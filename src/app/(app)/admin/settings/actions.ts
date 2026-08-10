@@ -13,7 +13,7 @@ export async function updateSettings(formData: FormData): Promise<ActionResult> 
   const storePhone = String(formData.get("storePhone") || "").trim();
   const storeAddress = String(formData.get("storeAddress") || "").trim();
 
-  if (!storeName) return { ok: false, error: "Store name is required" };
+  if (!storeName) return { ok: false, error: "errStoreNameRequired" };
 
   await setSetting("storeName", storeName);
   await setSetting("currency", currency || "MMK");

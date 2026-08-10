@@ -1,6 +1,9 @@
 import { prisma as db } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
 import { getDateRange } from "@/lib/reports";
+import { requireSession } from "@/lib/auth";
+import { reportsDict } from "@/lib/i18n/dict/reports";
+import { commonDict } from "@/lib/i18n/dict/common";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +12,10 @@ export default async function JournalReportPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
+  const user = await requireSession();
+  const t = reportsDict[user.language];
+  const c = commonDict[user.language];
+
   const { from: fromParam, to: toParam } = await searchParams;
   const { fromStr, toStr, from, to } = getDateRange(fromParam, toParam);
 
@@ -94,46 +101,46 @@ export default async function JournalReportPage({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="section-title">General Journal</h1>
+        <h1 className="section-title">{t.journalTitle}</h1>
         <div className="flex items-end gap-2">
           <form className="flex items-end gap-2" method="get">
             <div>
-              <label className="text-sm text-gray-600 block mb-1">From</label>
+              <label className="text-sm text-gray-600 block mb-1">{t.fromLabel}</label>
               <input type="date" name="from" defaultValue={fromStr} className="input" />
             </div>
             <div>
-              <label className="text-sm text-gray-600 block mb-1">To</label>
+              <label className="text-sm text-gray-600 block mb-1">{t.toLabel}</label>
               <input type="date" name="to" defaultValue={toStr} className="input" />
             </div>
-            <button type="submit" className="btn-outline">Filter</button>
+            <button type="submit" className="btn-outline">{c.filter}</button>
           </form>
           <a
             href={`/reports/journal/export?from=${fromStr}&to=${toStr}`}
             className="btn-outline"
           >
-            Export Excel
+            {t.exportExcel}
           </a>
         </div>
       </div>
 
       {entries.length === 0 ? (
-        <div className="card p-6 text-center text-gray-400">No journal entries in this period.</div>
+        <div className="card p-6 text-center text-gray-400">{t.noEntriesInPeriod}</div>
       ) : (
         <div className="card overflow-hidden p-0">
           <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Daily ins & outs
+            {t.dailyInsOuts}
           </div>
 
           <div className="grid grid-cols-[1fr,auto,auto,auto,auto] gap-x-3 border-b border-gray-100 px-4 py-2 text-xs text-gray-500">
-            <span>Date</span>
-            <span className="text-right w-24">In</span>
-            <span className="text-right w-24">Out</span>
-            <span className="text-right w-24">Net</span>
-            <span className="text-right w-28">Balance</span>
+            <span>{c.date}</span>
+            <span className="text-right w-24">{t.colIn}</span>
+            <span className="text-right w-24">{t.colOut}</span>
+            <span className="text-right w-24">{t.colNet}</span>
+            <span className="text-right w-28">{t.colBalance}</span>
           </div>
 
           <div className="px-4 py-2 text-xs text-gray-500 bg-gray-50 border-b border-gray-100">
-            Balance carried over: <span className="font-semibold tabular-nums text-gray-700">{formatMoney(openingBalance)}</span>
+            {t.balanceCarriedOver} <span className="font-semibold tabular-nums text-gray-700">{formatMoney(openingBalance)}</span>
           </div>
 
           <div className="divide-y divide-gray-50">
@@ -153,7 +160,7 @@ export default async function JournalReportPage({
 
                   <div className="px-4 pb-3 pl-6 space-y-3 bg-gray-50/60 text-xs">
                     <div>
-                      <p className="mb-1 font-semibold text-green-700">In</p>
+                      <p className="mb-1 font-semibold text-green-700">{t.colIn}</p>
                       {d.inByAccount.length === 0 ? (
                         <p className="text-gray-400">—</p>
                       ) : (
@@ -167,18 +174,18 @@ export default async function JournalReportPage({
                     </div>
 
                     <div>
-                      <p className="mb-1 font-semibold text-red-700">Out</p>
+                      <p className="mb-1 font-semibold text-red-700">{t.colOut}</p>
                       {d.outByCategory.length === 0 ? (
                         <p className="text-gray-400">—</p>
                       ) : (
-                        d.outByCategory.map((c) => (
-                          <details key={c.code} className="mb-0.5">
+                        d.outByCategory.map((cat) => (
+                          <details key={cat.code} className="mb-0.5">
                             <summary className="flex cursor-pointer items-center justify-between py-0.5 text-gray-600">
-                              <span>{c.name}</span>
-                              <span className="tabular-nums text-gray-800">{formatMoney(c.amount)}</span>
+                              <span>{cat.name}</span>
+                              <span className="tabular-nums text-gray-800">{formatMoney(cat.amount)}</span>
                             </summary>
                             <div className="pl-4">
-                              {c.items.map((it, i) => (
+                              {cat.items.map((it, i) => (
                                 <div key={i} className="flex items-center justify-between py-0.5 text-[11px] text-gray-500">
                                   <span>{it.description}</span>
                                   <span className="tabular-nums">{formatMoney(it.amount)}</span>
@@ -196,7 +203,7 @@ export default async function JournalReportPage({
           </div>
 
           <div className="grid grid-cols-[1fr,auto,auto,auto,auto] gap-x-3 border-t-2 border-gray-200 px-4 py-2 text-sm font-bold">
-            <span>Total</span>
+            <span>{c.total}</span>
             <span className="text-right w-24 tabular-nums text-green-700">{formatMoney(dailyRows.reduce((s, d) => s + d.in, 0))}</span>
             <span className="text-right w-24 tabular-nums text-red-700">{formatMoney(dailyRows.reduce((s, d) => s + d.out, 0))}</span>
             <span className="text-right w-24 tabular-nums">{formatMoney(dailyRows.reduce((s, d) => s + (d.in - d.out), 0))}</span>
@@ -207,10 +214,10 @@ export default async function JournalReportPage({
 
       <div className={`card flex items-center justify-between p-4 ${totals.debit === totals.credit ? "" : "border-red-300 bg-red-50"}`}>
         <span className="text-sm font-semibold text-gray-700">
-          Total Debit {formatMoney(totals.debit)} · Total Credit {formatMoney(totals.credit)}
+          {t.totalDebit} {formatMoney(totals.debit)} · {t.totalCredit} {formatMoney(totals.credit)}
         </span>
         <span className={`text-xs font-bold ${totals.debit === totals.credit ? "text-green-700" : "text-red-700"}`}>
-          {totals.debit === totals.credit ? "Balanced ✓" : "⚠ Unbalanced — investigate"}
+          {totals.debit === totals.credit ? t.balanced : t.unbalanced}
         </span>
       </div>
     </div>

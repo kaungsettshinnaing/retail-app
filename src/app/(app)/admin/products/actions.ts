@@ -33,7 +33,7 @@ export async function createProduct(formData: FormData) {
   };
 
   const parsed = ProductSchema.safeParse(raw);
-  if (!parsed.success) return { ok: false as const, error: "Invalid data" };
+  if (!parsed.success) return { ok: false as const, error: "errInvalidData" };
 
   // Parse option names (comma-separated or multi-value)
   const optionNames = formData.getAll("optionName") as string[];
@@ -46,7 +46,7 @@ export async function createProduct(formData: FormData) {
       const result = await saveUpload(imageFile, "products");
       imageUrl = result.path;
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Upload failed";
+      const message = err instanceof Error ? err.message : "errUploadFailed";
       return { ok: false as const, error: message };
     }
   }
@@ -84,7 +84,7 @@ export async function updateProduct(id: string, formData: FormData) {
   };
 
   const parsed = ProductSchema.safeParse(raw);
-  if (!parsed.success) return { ok: false as const, error: "Invalid data" };
+  if (!parsed.success) return { ok: false as const, error: "errInvalidData" };
 
   let imageUrl: string | undefined;
   const imageFile = formData.get("image") as File | null;
@@ -93,7 +93,7 @@ export async function updateProduct(id: string, formData: FormData) {
       const result = await saveUpload(imageFile, "products");
       imageUrl = result.path;
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Upload failed";
+      const message = err instanceof Error ? err.message : "errUploadFailed";
       return { ok: false as const, error: message };
     }
   }

@@ -3,9 +3,22 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ModuleDef } from "@/lib/rbac";
+import { navDict } from "@/lib/i18n/dict/nav";
+import type { Language } from "@/lib/i18n/language";
 
-export default function NavBar({ modules }: { modules: ModuleDef[] }) {
+const MODULE_KEY: Record<string, keyof typeof navDict.EN> = {
+  pos: "pos",
+  warehouse: "warehouse",
+  accounting: "accounting",
+  reports: "reports",
+  hr: "hr",
+  b2b: "b2b",
+  admin: "admin",
+};
+
+export default function NavBar({ modules, lang }: { modules: ModuleDef[]; lang: Language }) {
   const path = usePathname();
+  const t = navDict[lang];
   return (
     <nav className="scrollbar-none flex overflow-x-auto sm:overflow-x-visible sm:flex-wrap py-0.5 gap-0.5">
       {modules.map((m) => {
@@ -22,7 +35,7 @@ export default function NavBar({ modules }: { modules: ModuleDef[] }) {
             }
           >
             <span className="mr-1 text-xs">{m.icon}</span>
-            {m.label}
+            {t[MODULE_KEY[m.key]] ?? m.label}
           </Link>
         );
       })}

@@ -19,6 +19,13 @@ enum Role {
   CASHIER
   STOREMAN
   HR
+  BD_LEAD
+  BD_REP
+}
+
+enum Language {
+  EN
+  MY
 }
 
 enum ProductType {
@@ -90,6 +97,7 @@ enum CashEntryType {
 enum CashEntrySource {
   SALE
   EXPENSE
+  SUPPLIER_PAYMENT
   ADJUSTMENT
   OTHER
 }
@@ -130,6 +138,7 @@ model User {
   roles           Role[]
   isActive        Boolean  @default(true)
   isSystemAccount Boolean  @default(false)
+  language        Language @default(EN)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -156,6 +165,10 @@ model User {
   createdFines        EmployeeFine[]  @relation("FineCreatedBy")
   createdBonuses      AdHocBonus[]    @relation("BonusCreatedBy")
   lockedPayrolls      Payroll[]       @relation("PayrollLockedBy")
+
+  // B2B lead pipeline relations
+  ownedLeads      Lead[]         @relation("LeadOwner")
+  leadActivities  LeadActivity[] @relation("LeadActivityAuthor")
 }
 
 // ---------------------------------------------------------------------------
@@ -270,6 +283,7 @@ model ProductVariant {
   sku          String   @unique
   optionValues Json // {"Size": "Large", "Color": "Red"}
   price        Int? // null for CONTACT_PRICE
+  b2bPrice     Int? // wholesale override; null falls back to `price`
   comparePrice Int?
   imageUrl     String?
   isActive     Boolean  @default(true)
@@ -429,10 +443,12 @@ model Customer {
   address      String?
   isB2B        Boolean  @default(false)
   isActive     Boolean  @default(true)
+  language     Language @default(EN)
   createdAt    DateTime @default(now())
 
-  orders    Order[]
-  inquiries PriceInquiry[]
+  orders     Order[]
+  inquiries  PriceInquiry[]
+  sourceLead Lead?
 }
 
 model Order {
@@ -891,4 +907,73 @@ model JournalLine {
 
   @@index([entryId])
   @@index([accountId])
+}
+
+// ---------------------------------------------------------------------------
+// B2B lead pipeline — chasing wholesale/B2B customers from first contact
+// through onboarding; a WON lead converts into a Customer (isB2B: true).
+// ---------------------------------------------------------------------------
+
+enum LeadStage {
+  NEW
+  CONTACTED
+  TO_RETURN
+  TO_ONBOARD
+  WON
+  LOST
+}
+
+enum ActivityType {
+  CALL
+  MEETING
+  NOTE
+  EMAIL
+  TASK
+}
+
+model Lead {
+  id           String    @id @default(cuid())
+  businessName String
+  contactName  String?
+  phone        String?
+  shopField    String?
+  photoUrl     String?
+  mapsURL      String?
+  address      String?
+  township     String?
+  city         String?
+  notes        String?
+  stage        LeadStage @default(NEW)
+  lostReason   String?
+
+  ownerId String?
+  owner   User?   @relation("LeadOwner", fields: [ownerId], references: [id])
+
+  convertedCustomerId String?   @unique
+  convertedCustomer   Customer? @relation(fields: [convertedCustomerId], references: [id])
+  convertedAt         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  activities LeadActivity[]
+
+  @@index([stage])
+  @@index([ownerId])
+}
+
+model LeadActivity {
+  id          String       @id @default(cuid())
+  lead        Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId      String
+  type        ActivityType
+  content     String
+  dueAt       DateTime?
+  completedAt DateTime?
+
+  createdById String
+  createdBy   User   @relation("LeadActivityAuthor", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([leadId])
 }

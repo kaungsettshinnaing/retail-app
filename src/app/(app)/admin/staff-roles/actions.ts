@@ -24,7 +24,7 @@ export async function createStaffRole(formData: FormData): Promise<ActionResult>
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid data" };
 
   const existing = await db.staffRole.findUnique({ where: { name: parsed.data.name } });
-  if (existing) return { ok: false, error: "A staff role with this name already exists" };
+  if (existing) return { ok: false, error: "errStaffRoleNameExists" };
 
   await db.staffRole.create({
     data: { name: parsed.data.name, permissions: parsed.data.permissions },

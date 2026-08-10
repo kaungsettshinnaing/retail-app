@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { prisma as db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
+import { requireSession } from "@/lib/auth";
+import { warehouseDict } from "@/lib/i18n/dict/warehouse";
+import { commonDict } from "@/lib/i18n/dict/common";
+import type { Language } from "@/lib/i18n/language";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +16,9 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default async function WarehouseInvoicesPage() {
+  const user = await requireSession();
+  const t = warehouseDict[user.language];
+
   const invoices = await db.supplierInvoice.findMany({
     where: { status: { in: ["SUBMITTED", "COUNTING", "PLACED", "COMPLETE"] } },
     orderBy: { cashierSubmittedAt: "desc" },
@@ -28,12 +35,12 @@ export default async function WarehouseInvoicesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="section-title">Pending Invoices</h1>
-        <InvoiceTable invoices={pending} emptyText="No invoices waiting for counting." />
+        <h1 className="section-title">{t.pendingInvoicesTitle}</h1>
+        <InvoiceTable invoices={pending} emptyText={t.noInvoicesWaitingForCounting} lang={user.language} />
       </div>
       <div>
-        <h2 className="text-sm font-semibold text-gray-600 mb-2">Recently Placed</h2>
-        <InvoiceTable invoices={done} emptyText="No invoices placed yet." />
+        <h2 className="text-sm font-semibold text-gray-600 mb-2">{t.recentlyPlacedTitle}</h2>
+        <InvoiceTable invoices={done} emptyText={t.noInvoicesPlacedYet} lang={user.language} />
       </div>
     </div>
   );
@@ -42,6 +49,7 @@ export default async function WarehouseInvoicesPage() {
 function InvoiceTable({
   invoices,
   emptyText,
+  lang,
 }: {
   invoices: {
     id: string;
@@ -52,17 +60,27 @@ function InvoiceTable({
     _count: { items: number };
   }[];
   emptyText: string;
+  lang: Language;
 }) {
+  const t = warehouseDict[lang];
+  const c = commonDict[lang];
+  const STATUS_LABELS: Record<string, string> = {
+    SUBMITTED: t.invoiceStatusSubmitted,
+    COUNTING: t.invoiceStatusCounting,
+    PLACED: t.invoiceStatusPlaced,
+    COMPLETE: t.invoiceStatusComplete,
+  };
+
   return (
     <div className="card overflow-hidden p-0">
       <table className="w-full">
         <thead>
           <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-            <th className="py-2 px-3 text-left">Supplier</th>
-            <th className="py-2 px-3 text-left">Invoice No.</th>
-            <th className="py-2 px-3 text-left">Date</th>
-            <th className="py-2 px-3 text-center">Items</th>
-            <th className="py-2 px-3 text-left">Status</th>
+            <th className="py-2 px-3 text-left">{t.colSupplier}</th>
+            <th className="py-2 px-3 text-left">{t.colInvoiceNo}</th>
+            <th className="py-2 px-3 text-left">{c.date}</th>
+            <th className="py-2 px-3 text-center">{t.colItems}</th>
+            <th className="py-2 px-3 text-left">{c.status}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-50">
@@ -82,7 +100,7 @@ function InvoiceTable({
                 <td className="py-2 px-3 text-sm text-gray-600">{formatDate(inv.invoiceDate)}</td>
                 <td className="py-2 px-3 text-sm text-center text-gray-500">{inv._count.items}</td>
                 <td className="py-2 px-3">
-                  <span className={`badge ${STATUS_STYLES[inv.status] ?? ""}`}>{inv.status}</span>
+                  <span className={`badge ${STATUS_STYLES[inv.status] ?? ""}`}>{STATUS_LABELS[inv.status] ?? inv.status}</span>
                 </td>
               </tr>
             ))

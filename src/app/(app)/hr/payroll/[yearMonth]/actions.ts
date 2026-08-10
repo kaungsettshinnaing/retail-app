@@ -20,7 +20,7 @@ function parseYearMonth(slug: string): { year: number; month: number } {
 export async function generatePayroll(yearMonth: string): Promise<ActionResult> {
   await guard();
   const { year, month } = parseYearMonth(yearMonth);
-  if (!year || !month) return { ok: false, error: "Invalid period" };
+  if (!year || !month) return { ok: false, error: "invalidPeriodError" };
 
   const payroll = await db.payroll.upsert({
     where: { month_year: { month, year } },
@@ -29,7 +29,7 @@ export async function generatePayroll(yearMonth: string): Promise<ActionResult> 
   });
 
   if (payroll.status === "LOCKED") {
-    return { ok: false, error: "Cannot regenerate a locked payroll" };
+    return { ok: false, error: "cannotRegenerateLockedPayroll" };
   }
 
   const employees = await db.employee.findMany({ where: { isActive: true } });
@@ -110,8 +110,8 @@ export async function lockPayroll(yearMonth: string): Promise<ActionResult> {
   const { year, month } = parseYearMonth(yearMonth);
 
   const payroll = await db.payroll.findUnique({ where: { month_year: { month, year } } });
-  if (!payroll) return { ok: false, error: "Generate the payroll before locking it" };
-  if (payroll.status === "LOCKED") return { ok: false, error: "Payroll is already locked" };
+  if (!payroll) return { ok: false, error: "generateBeforeLockError" };
+  if (payroll.status === "LOCKED") return { ok: false, error: "alreadyLockedError" };
 
   const lockedAt = new Date();
   await db.$transaction(async (tx) => {

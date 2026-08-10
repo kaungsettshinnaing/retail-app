@@ -22,16 +22,16 @@ export async function createExpense(formData: FormData): Promise<ActionResult> {
   const supplierId = String(formData.get("supplierId") || "") || undefined;
   const paymentMethod = String(formData.get("paymentMethod") || "") as PaymentMethod;
 
-  if (!categoryId) return { ok: false, error: "Select a category" };
+  if (!categoryId) return { ok: false, error: "errSelectCategory" };
   const amount = Number(amountRaw);
-  if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: "Enter a valid amount" };
-  if (!description) return { ok: false, error: "Enter a description" };
+  if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: "errEnterValidAmount" };
+  if (!description) return { ok: false, error: "errEnterDescription" };
   const date = new Date(`${dateRaw}T00:00:00.000Z`);
-  if (Number.isNaN(date.getTime())) return { ok: false, error: "Invalid date" };
-  if (!["CASH", "TRANSFER", "COD"].includes(paymentMethod)) return { ok: false, error: "Select a payment method" };
+  if (Number.isNaN(date.getTime())) return { ok: false, error: "errInvalidDate" };
+  if (!["CASH", "TRANSFER", "COD"].includes(paymentMethod)) return { ok: false, error: "errSelectPaymentMethod" };
 
   const category = await db.expenseCategory.findUnique({ where: { id: categoryId } });
-  if (!category) return { ok: false, error: "Category not found" };
+  if (!category) return { ok: false, error: "errCategoryNotFound" };
 
   let receiptUrl: string | undefined;
   const receiptFile = formData.get("receipt") as File | null;
@@ -83,10 +83,10 @@ export async function createExpense(formData: FormData): Promise<ActionResult> {
 export async function createExpenseCategory(name: string): Promise<ActionResult> {
   await guard();
   const trimmed = name.trim();
-  if (!trimmed) return { ok: false, error: "Enter a category name" };
+  if (!trimmed) return { ok: false, error: "errEnterCategoryName" };
 
   const existing = await db.expenseCategory.findUnique({ where: { name: trimmed } });
-  if (existing) return { ok: false, error: "A category with this name already exists" };
+  if (existing) return { ok: false, error: "errCategoryNameExists" };
 
   const last = await db.expenseCategory.findFirst({ orderBy: { sortOrder: "desc" }, select: { sortOrder: true } });
   await db.expenseCategory.create({ data: { name: trimmed, sortOrder: (last?.sortOrder ?? 0) + 1 } });
@@ -98,10 +98,10 @@ export async function createExpenseCategory(name: string): Promise<ActionResult>
 export async function renameExpenseCategory(id: string, name: string): Promise<ActionResult> {
   await guard();
   const trimmed = name.trim();
-  if (!trimmed) return { ok: false, error: "Enter a category name" };
+  if (!trimmed) return { ok: false, error: "errEnterCategoryName" };
 
   const category = await db.expenseCategory.findUnique({ where: { id } });
-  if (!category) return { ok: false, error: "Category not found" };
+  if (!category) return { ok: false, error: "errCategoryNotFound" };
 
   await db.expenseCategory.update({ where: { id }, data: { name: trimmed } });
   revalidatePath("/accounting/expenses");
@@ -111,7 +111,7 @@ export async function renameExpenseCategory(id: string, name: string): Promise<A
 export async function toggleExpenseCategory(id: string, isActive: boolean): Promise<ActionResult> {
   await guard();
   const category = await db.expenseCategory.findUnique({ where: { id } });
-  if (!category) return { ok: false, error: "Category not found" };
+  if (!category) return { ok: false, error: "errCategoryNotFound" };
 
   await db.expenseCategory.update({ where: { id }, data: { isActive } });
   revalidatePath("/accounting/expenses");

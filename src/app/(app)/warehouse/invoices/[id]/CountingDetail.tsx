@@ -4,6 +4,9 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatMoney, formatDate, formatDateTime } from "@/lib/format";
 import { updateCount, confirmPlacement } from "../actions";
+import { warehouseDict } from "@/lib/i18n/dict/warehouse";
+import { commonDict } from "@/lib/i18n/dict/common";
+import type { Language } from "@/lib/i18n/language";
 
 type Item = {
   id: string;
@@ -47,16 +50,33 @@ function locationLabel(loc: Location): string {
   return loc.shelf ? `${loc.area.name} / ${loc.shelf.name} / ${loc.name}` : `${loc.area.name} / ${loc.name}`;
 }
 
-function itemLabel(item: Item): string {
+function itemLabel(item: Item, fallback: string): string {
   if (item.variant) {
     const opts = item.variant.optionValues as Record<string, string> | null;
     const optStr = opts && Object.keys(opts).length ? ` (${Object.values(opts).join(" / ")})` : "";
     return `${item.variant.sku}${optStr}`;
   }
-  return item.description || "Unmapped item";
+  return item.description || fallback;
 }
 
-function CountRow({ item, locations, editable }: { item: Item; locations: Location[]; editable: boolean }) {
+function resolveError(t: typeof warehouseDict["EN"], key?: string): string {
+  if (!key) return t.genericError;
+  return key in t ? ((t as unknown as Record<string, string>)[key]) : key;
+}
+
+function CountRow({
+  item,
+  locations,
+  editable,
+  lang,
+}: {
+  item: Item;
+  locations: Location[];
+  editable: boolean;
+  lang: Language;
+}) {
+  const t = warehouseDict[lang];
+  const c = commonDict[lang];
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const router = useRouter();
@@ -64,7 +84,7 @@ function CountRow({ item, locations, editable }: { item: Item; locations: Locati
   function handleSave(formData: FormData) {
     startTransition(async () => {
       const res = await updateCount(item.id, formData);
-      if (!res.ok) { setError(res.error); return; }
+      if (!res.ok) { setError(resolveError(t, res.error)); return; }
       setError("");
       router.refresh();
     });
@@ -74,7 +94,7 @@ function CountRow({ item, locations, editable }: { item: Item; locations: Locati
 
   return (
     <tr className={mismatch ? "bg-amber-50" : ""}>
-      <td className="py-2 px-3 text-sm">{itemLabel(item)}</td>
+      <td className="py-2 px-3 text-sm">{itemLabel(item, t.unmappedItemFallback)}</td>
       <td className="py-2 px-3 text-sm text-center">{item.invoicedQty}</td>
       {editable ? (
         <>
@@ -90,14 +110,14 @@ function CountRow({ item, locations, editable }: { item: Item; locations: Locati
               />
               {item.variantId && (
                 <select name="locationId" defaultValue={item.locationId ?? ""} className="input w-40 text-xs">
-                  <option value="">— Location —</option>
+                  <option value="">{t.locationPlaceholderOption}</option>
                   {locations.map((l) => (
                     <option key={l.id} value={l.id}>{locationLabel(l)}</option>
                   ))}
                 </select>
               )}
               <button type="submit" disabled={isPending} className="btn-primary text-xs px-2 py-1">
-                {isPending ? "…" : "Save"}
+                {isPending ? "…" : c.save}
               </button>
             </form>
             {error && <p className="text-red-600 text-xs text-center mt-1">{error}</p>}
@@ -116,17 +136,39 @@ function CountRow({ item, locations, editable }: { item: Item; locations: Locati
   );
 }
 
-export default function CountingDetail({ invoice, locations }: { invoice: Invoice; locations: Location[] }) {
+export default function CountingDetail({
+  invoice,
+  locations,
+  lang,
+}: {
+  invoice: Invoice;
+  locations: Location[];
+  lang: Language;
+}) {
+  const t = warehouseDict[lang];
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const router = useRouter();
   const editable = invoice.status === "SUBMITTED" || invoice.status === "COUNTING";
 
+  const STATUS_LABELS: Record<string, string> = {
+    SUBMITTED: t.invoiceStatusSubmitted,
+    COUNTING: t.invoiceStatusCounting,
+    PLACED: t.invoiceStatusPlaced,
+    COMPLETE: t.invoiceStatusComplete,
+  };
+  const LOG_ACTION_LABELS: Record<string, string> = {
+    CREATED: t.logActionCreated,
+    CASHIER_SUBMITTED: t.logActionCashierSubmitted,
+    COUNTING: t.logActionCounting,
+    PLACED: t.logActionPlaced,
+  };
+
   function handleConfirm() {
-    if (!confirm("Confirm placement? This will add counted quantities to stock at the assigned locations.")) return;
+    if (!confirm(t.confirmPlacementConfirm)) return;
     startTransition(async () => {
       const res = await confirmPlacement(invoice.id);
-      if (!res.ok) { setError(res.error); return; }
+      if (!res.ok) { setError(resolveError(t, res.error)); return; }
       setError("");
       router.refresh();
     });
@@ -136,12 +178,12 @@ export default function CountingDetail({ invoice, locations }: { invoice: Invoic
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="section-title">{invoice.supplier?.name ?? "Supplier Invoice"}</h1>
+          <h1 className="section-title">{invoice.supplier?.name ?? t.supplierInvoiceFallback}</h1>
           <p className="text-sm text-gray-500">
-            {invoice.invoiceNo ? `Invoice #${invoice.invoiceNo} — ` : ""}{formatDate(invoice.invoiceDate)}
+            {invoice.invoiceNo ? `${t.colInvoiceNo} ${invoice.invoiceNo} — ` : ""}{formatDate(invoice.invoiceDate)}
           </p>
         </div>
-        <span className={`badge ${STATUS_STYLES[invoice.status] ?? ""}`}>{invoice.status}</span>
+        <span className={`badge ${STATUS_STYLES[invoice.status] ?? ""}`}>{STATUS_LABELS[invoice.status] ?? invoice.status}</span>
       </div>
 
       {error && (
@@ -152,16 +194,16 @@ export default function CountingDetail({ invoice, locations }: { invoice: Invoic
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-              <th className="py-2 px-3 text-left">Item</th>
-              <th className="py-2 px-3 text-center">Invoiced Qty</th>
-              <th className="py-2 px-3 text-center">{editable ? "Count & Location" : "Counted"}</th>
-              {!editable && <th className="py-2 px-3 text-center">Placed</th>}
-              <th className="py-2 px-3 text-right">Unit Cost</th>
+              <th className="py-2 px-3 text-left">{t.colItem}</th>
+              <th className="py-2 px-3 text-center">{t.colInvoicedQty}</th>
+              <th className="py-2 px-3 text-center">{editable ? t.colCountAndLocation : t.colCounted}</th>
+              {!editable && <th className="py-2 px-3 text-center">{t.colPlacedQty}</th>}
+              <th className="py-2 px-3 text-right">{t.colUnitCost}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {invoice.items.map((item) => (
-              <CountRow key={item.id} item={item} locations={locations} editable={editable} />
+              <CountRow key={item.id} item={item} locations={locations} editable={editable} lang={lang} />
             ))}
           </tbody>
         </table>
@@ -169,24 +211,24 @@ export default function CountingDetail({ invoice, locations }: { invoice: Invoic
 
       {editable && (
         <button onClick={handleConfirm} disabled={isPending} className="btn-primary text-sm px-4 py-2">
-          {isPending ? "Placing…" : "Confirm Placement"}
+          {isPending ? t.placingLabel : t.confirmPlacementBtn}
         </button>
       )}
 
       {(invoice.cashier || invoice.counter) && (
         <div className="card text-sm text-gray-600 space-y-1">
-          {invoice.cashier && <p>Submitted by <strong>{invoice.cashier.name}</strong></p>}
-          {invoice.counter && <p>Counted by <strong>{invoice.counter.name}</strong></p>}
+          {invoice.cashier && <p>{t.submittedByLabel} <strong>{invoice.cashier.name}</strong></p>}
+          {invoice.counter && <p>{t.countedByLabel} <strong>{invoice.counter.name}</strong></p>}
         </div>
       )}
 
       {invoice.logs.length > 0 && (
         <div className="card">
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">Activity</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">{t.activityTitle}</h3>
           <ul className="space-y-1 text-xs text-gray-500">
             {invoice.logs.map((log) => (
               <li key={log.id}>
-                {formatDateTime(log.createdAt)} — <strong>{log.actor.name}</strong> {log.action}
+                {formatDateTime(log.createdAt)} — <strong>{log.actor.name}</strong> {LOG_ACTION_LABELS[log.action] ?? log.action}
                 {log.note ? `: ${log.note}` : ""}
               </li>
             ))}

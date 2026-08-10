@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { prisma as db } from "@/lib/db";
 import { formatDateTime } from "@/lib/format";
+import { requireSession } from "@/lib/auth";
+import { warehouseDict } from "@/lib/i18n/dict/warehouse";
+import { commonDict } from "@/lib/i18n/dict/common";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +18,19 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default async function WarehouseOrdersPage() {
+  const user = await requireSession();
+  const t = warehouseDict[user.language];
+  const c = commonDict[user.language];
+  const STATUS_LABELS: Record<string, string> = {
+    PENDING: t.statusPending,
+    PICKING: t.statusPicking,
+    PACKED: t.statusPacked,
+    READY: t.statusReady,
+    DELIVERED: t.statusDelivered,
+    PICKED_UP: t.statusPickedUp,
+    CANCELLED: t.statusCancelled,
+  };
+
   const orders = await db.order.findMany({
     where: { status: { in: ["PENDING", "PICKING", "PACKED", "READY"] } },
     orderBy: { createdAt: "asc" },
@@ -27,17 +43,17 @@ export default async function WarehouseOrdersPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="section-title">Order Fulfilment</h1>
+      <h1 className="section-title">{t.orderFulfilmentTitle}</h1>
       <div className="card overflow-hidden p-0">
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-              <th className="py-2 px-3 text-left">Order</th>
-              <th className="py-2 px-3 text-left">Customer</th>
-              <th className="py-2 px-3 text-left">Channel</th>
-              <th className="py-2 px-3 text-center">Items</th>
-              <th className="py-2 px-3 text-left">Placed</th>
-              <th className="py-2 px-3 text-left">Status</th>
+              <th className="py-2 px-3 text-left">{t.colOrder}</th>
+              <th className="py-2 px-3 text-left">{t.colCustomer}</th>
+              <th className="py-2 px-3 text-left">{t.colChannel}</th>
+              <th className="py-2 px-3 text-center">{t.colItems}</th>
+              <th className="py-2 px-3 text-left">{t.colPlaced}</th>
+              <th className="py-2 px-3 text-left">{c.status}</th>
               <th className="py-2 px-3" />
             </tr>
           </thead>
@@ -45,7 +61,7 @@ export default async function WarehouseOrdersPage() {
             {orders.length === 0 && (
               <tr>
                 <td colSpan={7} className="py-8 text-center text-sm text-gray-400">
-                  No orders awaiting fulfilment.
+                  {t.noOrdersAwaitingFulfilment}
                 </td>
               </tr>
             )}
@@ -57,7 +73,7 @@ export default async function WarehouseOrdersPage() {
                     #{o.id.slice(-8).toUpperCase()}
                   </td>
                   <td className="py-2 px-3 text-sm text-gray-600">
-                    {o.customerName || o.customer?.name || "Walk-in"}
+                    {o.customerName || o.customer?.name || t.walkIn}
                   </td>
                   <td className="py-2 px-3 text-sm text-gray-500">{o.channel}</td>
                   <td className="py-2 px-3 text-sm text-center text-gray-500">
@@ -65,11 +81,11 @@ export default async function WarehouseOrdersPage() {
                   </td>
                   <td className="py-2 px-3 text-sm text-gray-500">{formatDateTime(o.createdAt)}</td>
                   <td className="py-2 px-3">
-                    <span className={`badge ${STATUS_STYLES[o.status] ?? ""}`}>{o.status}</span>
+                    <span className={`badge ${STATUS_STYLES[o.status] ?? ""}`}>{STATUS_LABELS[o.status] ?? o.status}</span>
                   </td>
                   <td className="py-2 px-3 text-right">
                     <Link href={`/warehouse/orders/${o.id}`} className="text-sm text-brand hover:underline">
-                      Open
+                      {t.openLink}
                     </Link>
                   </td>
                 </tr>

@@ -14,11 +14,11 @@ async function guard() {
 export async function createArea(formData: FormData): Promise<ActionResult> {
   await guard();
   const name = String(formData.get("name") || "").trim();
-  if (!name) return { ok: false, error: "Name is required" };
+  if (!name) return { ok: false, error: "errNameRequired" };
   const sortOrder = Number(formData.get("sortOrder") || 0);
 
   const exists = await db.warehouseArea.findUnique({ where: { name } });
-  if (exists) return { ok: false, error: "An area with this name already exists" };
+  if (exists) return { ok: false, error: "errAreaNameExists" };
 
   await db.warehouseArea.create({ data: { name, sortOrder } });
   revalidatePath("/admin/warehouse");
@@ -28,7 +28,7 @@ export async function createArea(formData: FormData): Promise<ActionResult> {
 export async function updateArea(id: string, formData: FormData): Promise<ActionResult> {
   await guard();
   const name = String(formData.get("name") || "").trim();
-  if (!name) return { ok: false, error: "Name is required" };
+  if (!name) return { ok: false, error: "errNameRequired" };
   const sortOrder = Number(formData.get("sortOrder") || 0);
 
   await db.warehouseArea.update({ where: { id }, data: { name, sortOrder } });
@@ -50,7 +50,7 @@ export async function deleteArea(id: string): Promise<ActionResult> {
     db.warehouseSection.count({ where: { areaId: id } }),
   ]);
   if (shelfCount > 0 || sectionCount > 0) {
-    return { ok: false, error: "Cannot delete an area that has shelves or sections" };
+    return { ok: false, error: "errAreaHasChildren" };
   }
   await db.warehouseArea.delete({ where: { id } });
   revalidatePath("/admin/warehouse");
@@ -63,11 +63,11 @@ export async function createShelf(formData: FormData): Promise<ActionResult> {
   await guard();
   const areaId = String(formData.get("areaId") || "");
   const name = String(formData.get("name") || "").trim();
-  if (!areaId || !name) return { ok: false, error: "Area and name are required" };
+  if (!areaId || !name) return { ok: false, error: "errAreaAndNameRequired" };
   const sortOrder = Number(formData.get("sortOrder") || 0);
 
   const exists = await db.warehouseShelf.findUnique({ where: { areaId_name: { areaId, name } } });
-  if (exists) return { ok: false, error: "A shelf with this name already exists in this area" };
+  if (exists) return { ok: false, error: "errShelfNameExists" };
 
   await db.warehouseShelf.create({ data: { areaId, name, sortOrder } });
   revalidatePath("/admin/warehouse");
@@ -77,7 +77,7 @@ export async function createShelf(formData: FormData): Promise<ActionResult> {
 export async function updateShelf(id: string, formData: FormData): Promise<ActionResult> {
   await guard();
   const name = String(formData.get("name") || "").trim();
-  if (!name) return { ok: false, error: "Name is required" };
+  if (!name) return { ok: false, error: "errNameRequired" };
   const sortOrder = Number(formData.get("sortOrder") || 0);
 
   await db.warehouseShelf.update({ where: { id }, data: { name, sortOrder } });
@@ -95,7 +95,7 @@ export async function toggleShelf(id: string, isActive: boolean): Promise<Action
 export async function deleteShelf(id: string): Promise<ActionResult> {
   await guard();
   const sectionCount = await db.warehouseSection.count({ where: { shelfId: id } });
-  if (sectionCount > 0) return { ok: false, error: "Cannot delete a shelf that has sections" };
+  if (sectionCount > 0) return { ok: false, error: "errShelfHasSections" };
   await db.warehouseShelf.delete({ where: { id } });
   revalidatePath("/admin/warehouse");
   return { ok: true };
@@ -108,7 +108,7 @@ export async function createSection(formData: FormData): Promise<ActionResult> {
   const areaId = String(formData.get("areaId") || "");
   const shelfId = String(formData.get("shelfId") || "") || null;
   const name = String(formData.get("name") || "").trim();
-  if (!areaId || !name) return { ok: false, error: "Area and name are required" };
+  if (!areaId || !name) return { ok: false, error: "errAreaAndNameRequired" };
   const sortOrder = Number(formData.get("sortOrder") || 0);
 
   await db.warehouseSection.create({ data: { areaId, shelfId, name, sortOrder } });
@@ -119,7 +119,7 @@ export async function createSection(formData: FormData): Promise<ActionResult> {
 export async function updateSection(id: string, formData: FormData): Promise<ActionResult> {
   await guard();
   const name = String(formData.get("name") || "").trim();
-  if (!name) return { ok: false, error: "Name is required" };
+  if (!name) return { ok: false, error: "errNameRequired" };
   const sortOrder = Number(formData.get("sortOrder") || 0);
 
   await db.warehouseSection.update({ where: { id }, data: { name, sortOrder } });
@@ -137,7 +137,7 @@ export async function toggleSection(id: string, isActive: boolean): Promise<Acti
 export async function deleteSection(id: string): Promise<ActionResult> {
   await guard();
   const stockCount = await db.stockEntry.count({ where: { locationId: id, qty: { not: 0 } } });
-  if (stockCount > 0) return { ok: false, error: "Cannot delete a section that holds stock" };
+  if (stockCount > 0) return { ok: false, error: "errSectionHasStock" };
   await db.warehouseSection.delete({ where: { id } });
   revalidatePath("/admin/warehouse");
   return { ok: true };

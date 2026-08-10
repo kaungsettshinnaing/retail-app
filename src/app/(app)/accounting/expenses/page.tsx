@@ -1,5 +1,8 @@
 import { prisma as db } from "@/lib/db";
 import { formatDate, formatMoney } from "@/lib/format";
+import { requireSession } from "@/lib/auth";
+import { accountingDict } from "@/lib/i18n/dict/accounting";
+import { commonDict } from "@/lib/i18n/dict/common";
 import ExpenseForm from "./ExpenseForm";
 import CategoryManager from "./CategoryManager";
 
@@ -10,6 +13,10 @@ export default async function ExpensesPage({
 }: {
   searchParams: Promise<{ categoryId?: string; from?: string; to?: string }>;
 }) {
+  const user = await requireSession();
+  const t = accountingDict[user.language];
+  const c = commonDict[user.language];
+
   const { categoryId, from, to } = await searchParams;
 
   const where: {
@@ -35,17 +42,17 @@ export default async function ExpensesPage({
 
   return (
     <div className="space-y-4">
-      <h1 className="section-title">Expenses</h1>
+      <h1 className="section-title">{t.expensesTitle}</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
-          <ExpenseForm categories={categories.filter((c) => c.isActive)} suppliers={[]} />
+          <ExpenseForm categories={categories.filter((c) => c.isActive)} suppliers={[]} lang={user.language} />
 
           <form className="flex flex-wrap items-end gap-2" method="get">
             <div>
-              <label className="text-sm text-gray-600 block mb-1">Category</label>
+              <label className="text-sm text-gray-600 block mb-1">{t.categoryLabel}</label>
               <select name="categoryId" defaultValue={categoryId ?? ""} className="input">
-                <option value="">All categories</option>
+                <option value="">{t.allCategories}</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -54,15 +61,15 @@ export default async function ExpensesPage({
               </select>
             </div>
             <div>
-              <label className="text-sm text-gray-600 block mb-1">From</label>
+              <label className="text-sm text-gray-600 block mb-1">{t.fromLabel}</label>
               <input type="date" name="from" defaultValue={from ?? ""} className="input" />
             </div>
             <div>
-              <label className="text-sm text-gray-600 block mb-1">To</label>
+              <label className="text-sm text-gray-600 block mb-1">{t.toLabel}</label>
               <input type="date" name="to" defaultValue={to ?? ""} className="input" />
             </div>
             <button type="submit" className="btn-outline">
-              Filter
+              {c.filter}
             </button>
           </form>
 
@@ -70,18 +77,18 @@ export default async function ExpensesPage({
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                  <th className="py-2 px-3 text-left">Date</th>
-                  <th className="py-2 px-3 text-left">Category</th>
-                  <th className="py-2 px-3 text-left">Description</th>
-                  <th className="py-2 px-3 text-left">Recorded By</th>
-                  <th className="py-2 px-3 text-right">Amount</th>
+                  <th className="py-2 px-3 text-left">{c.date}</th>
+                  <th className="py-2 px-3 text-left">{t.categoryLabel}</th>
+                  <th className="py-2 px-3 text-left">{t.colDescription}</th>
+                  <th className="py-2 px-3 text-left">{t.colRecordedBy}</th>
+                  <th className="py-2 px-3 text-right">{t.colAmount}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {expenses.length === 0 && (
                   <tr>
                     <td colSpan={5} className="py-8 text-center text-sm text-gray-400">
-                      No expenses found.
+                      {t.noExpenses}
                     </td>
                   </tr>
                 )}
@@ -93,7 +100,7 @@ export default async function ExpensesPage({
                       {e.description}
                       {e.receiptUrl && (
                         <a href={e.receiptUrl} target="_blank" rel="noreferrer" className="ml-2 text-xs text-brand hover:underline">
-                          Receipt
+                          {t.receiptLink}
                         </a>
                       )}
                     </td>
@@ -107,7 +114,7 @@ export default async function ExpensesPage({
         </div>
 
         <div>
-          <CategoryManager categories={categories} />
+          <CategoryManager categories={categories} lang={user.language} />
         </div>
       </div>
     </div>

@@ -98,7 +98,7 @@ export async function updateEmployee(userId: string, fd: FormData) {
 export async function toggleEmployeeActive(userId: string, isActive: boolean): Promise<ActionResult> {
   await guard();
   const emp = await db.employee.findUnique({ where: { userId } });
-  if (!emp) return { ok: false, error: "Employee not found" };
+  if (!emp) return { ok: false, error: "employeeNotFoundError" };
 
   await db.employee.update({ where: { userId }, data: { isActive } });
   revalidatePath("/hr/employees");

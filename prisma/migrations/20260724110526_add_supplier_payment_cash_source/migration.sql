@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "CashEntrySource" ADD VALUE 'SUPPLIER_PAYMENT';

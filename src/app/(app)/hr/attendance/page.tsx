@@ -3,6 +3,8 @@ import { formatDate } from "@/lib/format";
 import { todayUTC } from "@/lib/hr-attendance";
 import MarkAttendanceForm from "./MarkAttendanceForm";
 import ApproveButton from "./ApproveButton";
+import { requireSession } from "@/lib/auth";
+import { hrDict } from "@/lib/i18n/dict/hr";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +21,15 @@ export default async function AttendancePage({
 }: {
   searchParams: Promise<{ month?: string; year?: string }>;
 }) {
+  const user = await requireSession();
+  const t = hrDict[user.language];
+  const STATUS_LABELS: Record<string, string> = {
+    PRESENT: t.statusPresent,
+    ABSENT: t.statusAbsent,
+    LEAVE: t.statusLeave,
+    REST_DAY: t.statusRestDay,
+    OT: t.statusOt,
+  };
   const now = todayUTC();
   const sp = await searchParams;
   const month = parseInt(sp.month ?? String(now.getUTCMonth() + 1));
@@ -51,7 +62,7 @@ export default async function AttendancePage({
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <h1 className="section-title">Attendance</h1>
+        <h1 className="section-title">{t.attendanceTitle}</h1>
         <div className="flex items-center gap-2 text-sm">
           <a href={`?month=${prev.month}&year=${prev.year}`} className="btn-outline px-2 py-1">‹</a>
           <span className="font-medium">
@@ -63,12 +74,12 @@ export default async function AttendancePage({
 
       {pending.length > 0 && (
         <div className="space-y-2">
-          <h2 className="font-semibold text-sm text-amber-600">Unapproved Attendance ({pending.length})</h2>
+          <h2 className="font-semibold text-sm text-amber-600">{t.unapprovedAttendanceTitle} ({pending.length})</h2>
           <div className="card bg-amber-50 border-amber-200 space-y-1">
             {pending.map((a) => (
               <div key={a.id} className="flex items-center justify-between text-sm">
-                <span>{a.employee.user.name} — {formatDate(a.date)} ({a.status})</span>
-                <ApproveButton id={a.id} />
+                <span>{a.employee.user.name} — {formatDate(a.date)} ({STATUS_LABELS[a.status] ?? a.status})</span>
+                <ApproveButton id={a.id} lang={user.language} />
               </div>
             ))}
           </div>
@@ -79,7 +90,7 @@ export default async function AttendancePage({
         <table className="min-w-full text-xs">
           <thead className="border-b border-gray-100 bg-gray-50">
             <tr>
-              <th className="sticky left-0 bg-gray-50 px-3 py-2 text-left font-semibold">Employee</th>
+              <th className="sticky left-0 bg-gray-50 px-3 py-2 text-left font-semibold">{t.colEmployee}</th>
               {Array.from({ length: daysInMonth }, (_, i) => (
                 <th key={i} className="px-1 py-2 text-center font-medium text-gray-400">{i + 1}</th>
               ))}
@@ -118,7 +129,7 @@ export default async function AttendancePage({
             {employees.length === 0 && (
               <tr>
                 <td colSpan={daysInMonth + 1} className="py-8 text-center text-sm text-gray-400">
-                  No active employees.
+                  {t.noActiveEmployeesAttendance}
                 </td>
               </tr>
             )}
@@ -129,11 +140,12 @@ export default async function AttendancePage({
       <MarkAttendanceForm
         employees={employees.map((e) => ({ userId: e.userId, name: e.user.name }))}
         today={now.toISOString().slice(0, 10)}
+        lang={user.language}
       />
 
       <div className="flex flex-wrap gap-2 text-xs">
         {Object.entries(STATUS_STYLES).map(([s, cls]) => (
-          <span key={s} className={`rounded px-2 py-0.5 ${cls}`}>{s}</span>
+          <span key={s} className={`rounded px-2 py-0.5 ${cls}`}>{STATUS_LABELS[s] ?? s}</span>
         ))}
       </div>
     </div>

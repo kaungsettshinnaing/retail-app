@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCustomerSession } from "@/lib/auth";
+import { storeDict } from "@/lib/i18n/dict/store";
+import { commonDict } from "@/lib/i18n/dict/common";
 import { prisma as db } from "@/lib/db";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import LogoutButton from "./LogoutButton";
@@ -20,6 +22,9 @@ const STATUS_STYLES: Record<string, string> = {
 export default async function AccountPage() {
   const session = await getCustomerSession();
   if (!session) redirect("/store/account/login");
+  const lang = session.language;
+  const t = storeDict[lang];
+  const c = commonDict[lang];
 
   const customer = await db.customer.findUnique({ where: { id: session.id } });
   if (!customer) redirect("/store/account/login");
@@ -33,28 +38,28 @@ export default async function AccountPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center justify-between">
-        <h1 className="section-title">My Account</h1>
-        <LogoutButton />
+        <h1 className="section-title">{t.myAccount}</h1>
+        <LogoutButton lang={lang} />
       </div>
 
       <div className="card text-sm text-gray-600 space-y-1">
-        <p>Name: <strong>{customer.name}</strong></p>
-        <p>Email: {customer.email}</p>
-        {customer.phone && <p>Phone: {customer.phone}</p>}
-        {customer.address && <p>Address: {customer.address}</p>}
+        <p>{t.nameLabel} <strong>{customer.name}</strong></p>
+        <p>{t.emailLabel} {customer.email}</p>
+        {customer.phone && <p>{t.phoneLabel} {customer.phone}</p>}
+        {customer.address && <p>{t.addressLabel} {customer.address}</p>}
       </div>
 
       <div>
-        <h2 className="text-sm font-semibold text-gray-700 mb-2">Order History</h2>
+        <h2 className="text-sm font-semibold text-gray-700 mb-2">{t.orderHistory}</h2>
         <div className="card overflow-hidden p-0">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                <th className="py-2 px-3 text-left">Order</th>
-                <th className="py-2 px-3 text-left">Placed</th>
-                <th className="py-2 px-3 text-center">Items</th>
-                <th className="py-2 px-3 text-right">Total</th>
-                <th className="py-2 px-3 text-left">Status</th>
+                <th className="py-2 px-3 text-left">{t.orderCol}</th>
+                <th className="py-2 px-3 text-left">{t.placedCol}</th>
+                <th className="py-2 px-3 text-center">{t.itemsCol}</th>
+                <th className="py-2 px-3 text-right">{t.totalCol}</th>
+                <th className="py-2 px-3 text-left">{t.statusCol}</th>
                 <th className="py-2 px-3" />
               </tr>
             </thead>
@@ -62,7 +67,7 @@ export default async function AccountPage() {
               {orders.length === 0 && (
                 <tr>
                   <td colSpan={6} className="py-6 text-center text-sm text-gray-400">
-                    No orders yet.
+                    {t.noOrdersYet}
                   </td>
                 </tr>
               )}
@@ -73,11 +78,13 @@ export default async function AccountPage() {
                   <td className="py-2 px-3 text-sm text-center text-gray-500">{o.items.length}</td>
                   <td className="py-2 px-3 text-sm text-right">{formatMoney(o.total)}</td>
                   <td className="py-2 px-3">
-                    <span className={`badge ${STATUS_STYLES[o.status] ?? ""}`}>{o.status}</span>
+                    <span className={`badge ${STATUS_STYLES[o.status] ?? ""}`}>
+                      {t.orderStatusLabels[o.status as keyof typeof t.orderStatusLabels] ?? o.status}
+                    </span>
                   </td>
                   <td className="py-2 px-3 text-right">
                     <Link href={`/store/orders/${o.id}`} className="text-sm text-brand hover:underline">
-                      View
+                      {c.view}
                     </Link>
                   </td>
                 </tr>

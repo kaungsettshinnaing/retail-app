@@ -1,16 +1,19 @@
+import Link from "next/link";
 import { modulesFor } from "@/lib/rbac";
 import type { SessionUser } from "@/lib/auth";
 import { logoutAction } from "@/lib/session-actions";
+import { navDict } from "@/lib/i18n/dict/nav";
+import { commonDict } from "@/lib/i18n/dict/common";
 import NavBar from "./NavBar";
 
 const ROLE_PRIORITY = ["ADMIN", "MANAGER", "HR", "CASHIER", "STOREMAN"] as const;
-const ROLE_LABEL: Record<string, string> = {
-  ADMIN: "Admin", MANAGER: "Manager", HR: "HR",
-  CASHIER: "Cashier", STOREMAN: "Storeman",
+const ROLE_KEY: Record<string, keyof typeof commonDict.EN> = {
+  ADMIN: "roleAdmin", MANAGER: "roleManager", HR: "roleHr",
+  CASHIER: "roleCashier", STOREMAN: "roleStoreman",
 };
 
-function primaryRole(roles: string[]): string {
-  for (const r of ROLE_PRIORITY) if (roles.includes(r)) return ROLE_LABEL[r] ?? r;
+function primaryRole(roles: string[], c: typeof commonDict.EN): string {
+  for (const r of ROLE_PRIORITY) if (roles.includes(r)) return c[ROLE_KEY[r]] ?? r;
   return roles[0] ?? "Staff";
 }
 
@@ -24,6 +27,8 @@ export default function AppShell({
   children: React.ReactNode;
 }) {
   const mods = modulesFor(user.roles);
+  const t = navDict[user.language];
+  const c = commonDict[user.language];
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
@@ -40,27 +45,33 @@ export default function AppShell({
             </div>
             <div className="hidden sm:block leading-tight">
               <div className="text-sm font-bold text-accent tracking-wide">{storeName}</div>
-              <div className="text-[10px] text-white/60 uppercase tracking-widest">Management</div>
+              <div className="text-[10px] text-white/60 uppercase tracking-widest">{t.management}</div>
             </div>
           </div>
 
           {/* Module nav */}
           <div className="order-3 w-full sm:order-2 sm:w-auto sm:flex-1">
-            <NavBar modules={mods} />
+            <NavBar modules={mods} lang={user.language} />
           </div>
 
           {/* Right: user + logout */}
           <div className="order-2 ml-auto flex items-center gap-3 sm:order-3">
-            <div className="text-right leading-tight">
+            <Link href="/profile" className="text-right leading-tight hover:opacity-80">
               <div className="text-sm font-semibold text-white">{user.name}</div>
-              <div className="text-[10px] text-white/60">{primaryRole(user.roles)}</div>
-            </div>
+              <div className="text-[10px] text-white/60">{primaryRole(user.roles, c)}</div>
+            </Link>
+            <Link
+              href="/profile"
+              className="rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20 transition-colors"
+            >
+              {t.profile}
+            </Link>
             <form action={logoutAction}>
               <button
                 type="submit"
                 className="rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20 transition-colors"
               >
-                Logout
+                {t.logout}
               </button>
             </form>
           </div>

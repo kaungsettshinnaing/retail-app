@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { prisma as db } from "@/lib/db";
 import { formatMoney, formatDate } from "@/lib/format";
+import { requireSession } from "@/lib/auth";
+import { posDict } from "@/lib/i18n/dict/pos";
+import { commonDict } from "@/lib/i18n/dict/common";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +16,17 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default async function InvoicesPage() {
+  const user = await requireSession();
+  const t = posDict[user.language];
+  const c = commonDict[user.language];
+  const STATUS_LABELS: Record<string, string> = {
+    DRAFT: t.invoiceStatusDraft,
+    SUBMITTED: t.invoiceStatusSubmitted,
+    COUNTING: t.invoiceStatusCounting,
+    PLACED: t.invoiceStatusPlaced,
+    COMPLETE: t.invoiceStatusComplete,
+  };
+
   const invoices = await db.supplierInvoice.findMany({
     orderBy: { createdAt: "desc" },
     include: {
@@ -25,9 +39,9 @@ export default async function InvoicesPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="section-title">Supplier Invoices</h1>
+        <h1 className="section-title">{t.tabSupplierInvoices}</h1>
         <Link href="/pos/invoices/new" className="btn-primary text-sm">
-          + New Invoice
+          {t.newInvoiceBtn}
         </Link>
       </div>
 
@@ -35,19 +49,19 @@ export default async function InvoicesPage() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-              <th className="py-2 px-3 text-left">Supplier</th>
-              <th className="py-2 px-3 text-left">Invoice No.</th>
-              <th className="py-2 px-3 text-left">Date</th>
-              <th className="py-2 px-3 text-center">Items</th>
-              <th className="py-2 px-3 text-right">Total</th>
-              <th className="py-2 px-3 text-left">Status</th>
+              <th className="py-2 px-3 text-left">{t.colSupplier}</th>
+              <th className="py-2 px-3 text-left">{t.colInvoiceNo}</th>
+              <th className="py-2 px-3 text-left">{c.date}</th>
+              <th className="py-2 px-3 text-center">{t.colItems}</th>
+              <th className="py-2 px-3 text-right">{c.total}</th>
+              <th className="py-2 px-3 text-left">{c.status}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {invoices.length === 0 ? (
               <tr>
                 <td colSpan={6} className="py-8 text-center text-sm text-gray-400">
-                  No supplier invoices yet — create one above.
+                  {t.noSupplierInvoicesYet}
                 </td>
               </tr>
             ) : (
@@ -65,7 +79,7 @@ export default async function InvoicesPage() {
                     {inv.totalAmount != null ? formatMoney(inv.totalAmount) : "—"}
                   </td>
                   <td className="py-2 px-3">
-                    <span className={`badge ${STATUS_STYLES[inv.status] ?? ""}`}>{inv.status}</span>
+                    <span className={`badge ${STATUS_STYLES[inv.status] ?? ""}`}>{STATUS_LABELS[inv.status] ?? inv.status}</span>
                   </td>
                 </tr>
               ))

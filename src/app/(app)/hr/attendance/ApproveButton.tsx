@@ -3,8 +3,11 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { approveAttendance } from "./actions";
+import { hrDict } from "@/lib/i18n/dict/hr";
+import type { Language } from "@/lib/i18n/language";
 
-export default function ApproveButton({ id }: { id: string }) {
+export default function ApproveButton({ id, lang }: { id: string; lang: Language }) {
+  const t = hrDict[lang];
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -17,7 +20,7 @@ export default function ApproveButton({ id }: { id: string }) {
       })}
       className="text-xs text-brand hover:underline"
     >
-      Approve
+      {t.approveBtn}
     </button>
   );
 }

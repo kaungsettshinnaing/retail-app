@@ -1,5 +1,6 @@
 import { prisma as db } from "./db";
 import { getVariantsTotalStock } from "./inventory";
+import { resolveVariantPrice } from "./pricing";
 
 export async function getStoreCategories() {
   return db.category.findMany({
@@ -15,7 +16,9 @@ export async function getStoreCategory(slug: string) {
   return db.category.findFirst({ where: { slug, isActive: true } });
 }
 
-export async function getStoreProducts(opts: { categoryId?: string; search?: string } = {}) {
+export async function getStoreProducts(
+  opts: { categoryId?: string; search?: string; isB2B?: boolean } = {},
+) {
   const products = await db.product.findMany({
     where: {
       isActive: true,
@@ -31,14 +34,19 @@ export async function getStoreProducts(opts: { categoryId?: string; search?: str
 
   const variantIds = products.flatMap((p) => p.variants.map((v) => v.id));
   const stockMap = await getVariantsTotalStock(variantIds);
+  const isB2B = opts.isB2B ?? false;
 
   return products.map((p) => ({
     ...p,
-    variants: p.variants.map((v) => ({ ...v, stock: stockMap[v.id] ?? 0 })),
+    variants: p.variants.map((v) => ({
+      ...v,
+      stock: stockMap[v.id] ?? 0,
+      displayPrice: resolveVariantPrice(v, isB2B),
+    })),
   }));
 }
 
-export async function getStoreProduct(id: string) {
+export async function getStoreProduct(id: string, opts: { isB2B?: boolean } = {}) {
   const product = await db.product.findFirst({
     where: { id, isActive: true, isOnline: true },
     include: {
@@ -51,9 +59,14 @@ export async function getStoreProduct(id: string) {
 
   const variantIds = product.variants.map((v) => v.id);
   const stockMap = await getVariantsTotalStock(variantIds);
+  const isB2B = opts.isB2B ?? false;
 
   return {
     ...product,
-    variants: product.variants.map((v) => ({ ...v, stock: stockMap[v.id] ?? 0 })),
+    variants: product.variants.map((v) => ({
+      ...v,
+      stock: stockMap[v.id] ?? 0,
+      displayPrice: resolveVariantPrice(v, isB2B),
+    })),
   };
 }

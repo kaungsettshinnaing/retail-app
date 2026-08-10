@@ -1,11 +1,15 @@
 import { prisma as db } from "@/lib/db";
 import { CreateFineForm, DeleteFineButton } from "./FineActions";
+import { requireSession } from "@/lib/auth";
+import { hrDict } from "@/lib/i18n/dict/hr";
 
 export const dynamic = "force-dynamic";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 export default async function FinesPage() {
+  const user = await requireSession();
+  const t = hrDict[user.language];
   const [employees, fines] = await Promise.all([
     db.employee.findMany({
       where: { isActive: true },
@@ -20,19 +24,19 @@ export default async function FinesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="section-title">Employee Fines</h1>
+      <h1 className="section-title">{t.finesTitle}</h1>
 
-      <CreateFineForm employees={employees.map((e) => ({ userId: e.userId, name: e.user.name }))} />
+      <CreateFineForm employees={employees.map((e) => ({ userId: e.userId, name: e.user.name }))} lang={user.language} />
 
       <div className="card overflow-hidden p-0">
         <table className="w-full text-sm">
           <thead className="border-b border-gray-100 bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
-              <th className="px-4 py-2 text-left">Employee</th>
-              <th className="px-4 py-2 text-left">Amount</th>
-              <th className="px-4 py-2 text-left">Reason</th>
-              <th className="px-4 py-2 text-left">Deduct In</th>
-              <th className="px-4 py-2 text-left">Status</th>
+              <th className="px-4 py-2 text-left">{t.colEmployee}</th>
+              <th className="px-4 py-2 text-left">{t.colAmount}</th>
+              <th className="px-4 py-2 text-left">{t.colReason}</th>
+              <th className="px-4 py-2 text-left">{t.colDeductIn}</th>
+              <th className="px-4 py-2 text-left">{t.colStatus}</th>
               <th className="px-4 py-2" />
             </tr>
           </thead>
@@ -45,15 +49,15 @@ export default async function FinesPage() {
                 <td className="px-4 py-2 text-gray-500">{MONTHS[f.deductMonth - 1]} {f.deductYear}</td>
                 <td className="px-4 py-2">
                   <span className={`badge ${f.deducted ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                    {f.deducted ? "Deducted" : "Pending"}
+                    {f.deducted ? t.deductedBadge : t.pendingBadge}
                   </span>
                 </td>
-                <td className="px-4 py-2">{!f.deducted && <DeleteFineButton id={f.id} />}</td>
+                <td className="px-4 py-2">{!f.deducted && <DeleteFineButton id={f.id} lang={user.language} />}</td>
               </tr>
             ))}
             {fines.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-gray-400">No fines recorded.</td>
+                <td colSpan={6} className="px-4 py-6 text-center text-gray-400">{t.noFines}</td>
               </tr>
             )}
           </tbody>

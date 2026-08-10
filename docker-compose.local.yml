@@ -1,0 +1,89 @@
+# Retail Store Management — full local dev stack (Postgres + Next dev server).
+#
+#   Start:  docker compose -f docker-compose.local.yml up -d --build
+#   Logs:   docker compose -f docker-compose.local.yml logs -f retail-web
+#   Stop:   docker compose -f docker-compose.local.yml down
+#   Reset:  docker compose -f docker-compose.local.yml down -v   (wipes DB + re-seeds)
+#
+#   App:    http://localhost:3003
+#   DB:     localhost:5443  (retail / devpassword / retail_dev)
+#   Login:  admin / admin123
+#
+# Ports are offset so this can run alongside pan-miniapp and qq-app.
+# Unlike docker-compose.yml this needs no .env and no external traefik-public
+# network — everything is self-contained with dev-only values.
+
+services:
+  retail-db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: retail
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: retail_dev
+    ports:
+      - "127.0.0.1:5443:5432"
+    volumes:
+      - retail_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U retail -d retail_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  retail-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      TZ: Asia/Yangon
+      DATABASE_URL: postgresql://retail:devpassword@retail-db:5432/retail_dev?schema=public
+      AUTH_SECRET: local-dev-auth-secret-do-not-use-in-production
+      CUSTOMER_AUTH_SECRET: local-dev-customer-secret-do-not-use-in-production
+      APP_URL: http://localhost:3003
+      UPLOADS_DIR: /app/uploads
+    # Optional override file, git-ignored. Absent by default.
+    env_file:
+      - path: .env.docker
+        required: false
+    ports:
+      - "3003:3000"
+    depends_on:
+      retail-db:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - retail_node_modules:/app/node_modules
+      - retail_next:/app/.next
+      - retail_uploads:/app/uploads
+      - retail_devstate:/dev-state
+    command: >
+      sh -c '
+        set -e
+        if [ ! -f /app/node_modules/.deps-stamp ] || ! cmp -s /app/package-lock.json /app/node_modules/.deps-stamp; then
+          echo "→ package-lock.json changed — reinstalling dependencies…"
+          npm ci
+          cp /app/package-lock.json /app/node_modules/.deps-stamp
+        fi
+        echo "→ Generating Prisma client…"
+        npx prisma generate
+        echo "→ Applying migrations…"
+        npx prisma migrate deploy
+        if [ ! -f /dev-state/seeded ]; then
+          echo "→ Fresh database — seeding…"
+          npm run db:seed
+          touch /dev-state/seeded
+        fi
+        echo "→ Starting Retail dev server on http://localhost:3003"
+        exec npx next dev -H 0.0.0.0 -p 3000
+      '
+
+volumes:
+  retail_pgdata:
+  retail_node_modules:
+  retail_next:
+  retail_uploads:
+  retail_devstate:

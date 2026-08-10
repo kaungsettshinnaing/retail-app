@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation";
 import { prisma as db } from "@/lib/db";
 import { formatMoney, formatDateTime } from "@/lib/format";
+import { requireSession } from "@/lib/auth";
+import { posDict } from "@/lib/i18n/dict/pos";
+import { commonDict } from "@/lib/i18n/dict/common";
 import CancelOrderButton from "./CancelOrderButton";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +23,23 @@ export default async function OrderDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const user = await requireSession();
+  const t = posDict[user.language];
+  const c = commonDict[user.language];
+  const STATUS_LABELS: Record<string, string> = {
+    PENDING: t.statusPending,
+    PICKING: t.statusPicking,
+    PACKED: t.statusPacked,
+    READY: t.statusReady,
+    DELIVERED: t.statusDelivered,
+    PICKED_UP: t.statusPickedUp,
+    CANCELLED: t.statusCancelled,
+  };
+  const PAYMENT_LABELS: Record<string, string> = {
+    CASH: t.paymentCash,
+    TRANSFER: t.paymentTransfer,
+    COD: t.paymentCod,
+  };
   const { id } = await params;
 
   const order = await db.order.findUnique({
@@ -37,25 +57,25 @@ export default async function OrderDetailPage({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="section-title">Order #{order.id.slice(-8).toUpperCase()}</h1>
+          <h1 className="section-title">{t.orderTitlePrefix}{order.id.slice(-8).toUpperCase()}</h1>
           <p className="text-sm text-gray-500">
-            {order.customerName || order.customer?.name || "Walk-in customer"}
+            {order.customerName || order.customer?.name || t.walkInCustomer}
             {order.customerPhone ? ` — ${order.customerPhone}` : ""}
           </p>
         </div>
-        <span className={`badge ${STATUS_STYLES[order.status] ?? ""}`}>{order.status}</span>
+        <span className={`badge ${STATUS_STYLES[order.status] ?? ""}`}>{STATUS_LABELS[order.status] ?? order.status}</span>
       </div>
 
-      <CancelOrderButton orderId={order.id} orderStatus={order.status} />
+      <CancelOrderButton orderId={order.id} orderStatus={order.status} lang={user.language} />
 
       <div className="card overflow-hidden p-0">
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-              <th className="py-2 px-3 text-left">Item</th>
-              <th className="py-2 px-3 text-center">Qty</th>
-              <th className="py-2 px-3 text-right">Unit Price</th>
-              <th className="py-2 px-3 text-right">Line Total</th>
+              <th className="py-2 px-3 text-left">{t.colItem}</th>
+              <th className="py-2 px-3 text-center">{t.colQty}</th>
+              <th className="py-2 px-3 text-right">{t.colUnitPrice}</th>
+              <th className="py-2 px-3 text-right">{t.colLineTotal}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -75,17 +95,17 @@ export default async function OrderDetailPage({
           </tbody>
           <tfoot>
             <tr className="border-t border-gray-100">
-              <td colSpan={3} className="py-2 px-3 text-right text-sm text-gray-500">Subtotal</td>
+              <td colSpan={3} className="py-2 px-3 text-right text-sm text-gray-500">{t.subtotalLabel}</td>
               <td className="py-2 px-3 text-right text-sm">{formatMoney(order.subtotal)}</td>
             </tr>
             {order.discount > 0 && (
               <tr>
-                <td colSpan={3} className="py-2 px-3 text-right text-sm text-gray-500">Discount</td>
+                <td colSpan={3} className="py-2 px-3 text-right text-sm text-gray-500">{t.discountLabel}</td>
                 <td className="py-2 px-3 text-right text-sm">-{formatMoney(order.discount)}</td>
               </tr>
             )}
             <tr>
-              <td colSpan={3} className="py-2 px-3 text-right text-sm font-medium text-gray-600">Total</td>
+              <td colSpan={3} className="py-2 px-3 text-right text-sm font-medium text-gray-600">{c.total}</td>
               <td className="py-2 px-3 text-right text-sm font-semibold">{formatMoney(order.total)}</td>
             </tr>
           </tfoot>
@@ -93,18 +113,18 @@ export default async function OrderDetailPage({
       </div>
 
       <div className="card text-sm text-gray-600 space-y-1">
-        <p>Cashier: <strong>{order.cashier?.name ?? "—"}</strong></p>
-        <p>Payment: <strong>{order.paymentMethod ?? "—"}</strong>{order.paidAt ? ` — paid ${formatDateTime(order.paidAt)}` : ""}</p>
-        {order.notes && <p>Notes: {order.notes}</p>}
+        <p>{t.cashierLabel} <strong>{order.cashier?.name ?? "—"}</strong></p>
+        <p>{t.paymentLabel} <strong>{order.paymentMethod ? PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod : "—"}</strong>{order.paidAt ? ` — ${t.paidPrefix} ${formatDateTime(order.paidAt)}` : ""}</p>
+        {order.notes && <p>{t.notesLabel} {order.notes}</p>}
       </div>
 
       {order.logs.length > 0 && (
         <div className="card">
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">Activity</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">{t.activityTitle}</h3>
           <ul className="space-y-1 text-xs text-gray-500">
             {order.logs.map((log) => (
               <li key={log.id}>
-                {formatDateTime(log.createdAt)} — <strong>{log.actor?.name ?? "System"}</strong> {log.status}
+                {formatDateTime(log.createdAt)} — <strong>{log.actor?.name ?? t.systemActor}</strong> {STATUS_LABELS[log.status] ?? log.status}
                 {log.note ? `: ${log.note}` : ""}
               </li>
             ))}

@@ -97,32 +97,33 @@ export async function adjustStock(
 ): Promise<StockAdjustResult> {
   const { variantId, locationId, qtyDelta, type, actorId, invoiceItemId, orderItemId, note } = params;
 
+  // Ensure the row exists via an atomic upsert (Prisma/Postgres translate
+  // this to a single INSERT ... ON CONFLICT DO NOTHING-equivalent statement
+  // for a compound-unique target) before locking it — otherwise two
+  // concurrent first-time adjustments to the same variant+location could
+  // both see no row, both attempt `create`, and one would fail on the
+  // @@unique([variantId, locationId]) constraint.
+  await tx.stockEntry.upsert({
+    where: { variantId_locationId: { variantId, locationId } },
+    create: { variantId, locationId, qty: 0 },
+    update: {},
+  });
+
   const locked = await tx.$queryRaw<{ id: string; qty: number }[]>`
     SELECT id, qty FROM "StockEntry"
     WHERE "variantId" = ${variantId} AND "locationId" = ${locationId}
     FOR UPDATE
   `;
-
-  let entryId: string;
-  let previousQty: number;
-
   if (locked.length === 0) {
-    if (qtyDelta < 0) {
-      return { ok: false, error: "No stock at this location" };
-    }
-    const created = await tx.stockEntry.create({
-      data: { variantId, locationId, qty: 0 },
-    });
-    entryId = created.id;
-    previousQty = 0;
-  } else {
-    entryId = locked[0].id;
-    previousQty = locked[0].qty;
+    return { ok: false, error: "Stock entry could not be created" };
   }
+
+  const entryId = locked[0].id;
+  const previousQty = locked[0].qty;
 
   const newQty = previousQty + qtyDelta;
   if (newQty < 0) {
-    return { ok: false, error: "Insufficient stock" };
+    return { ok: false, error: previousQty === 0 ? "No stock at this location" : "Insufficient stock" };
   }
 
   await tx.stockEntry.update({ where: { id: entryId }, data: { qty: newQty } });

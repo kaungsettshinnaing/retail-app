@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma as db } from "@/lib/db";
+import { requireSession } from "@/lib/auth";
 import InvoiceDetail from "./InvoiceDetail";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,7 @@ export default async function InvoiceDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const user = await requireSession();
   const { id } = await params;
 
   const [invoice, products] = await Promise.all([
@@ -39,5 +41,5 @@ export default async function InvoiceDetailPage({
 
   if (!invoice) notFound();
 
-  return <InvoiceDetail invoice={invoice} products={products} />;
+  return <InvoiceDetail invoice={invoice} products={products} lang={user.language} />;
 }

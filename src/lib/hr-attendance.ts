@@ -1,16 +1,17 @@
 import { prisma as db } from "./db";
 import { workingDaysInMonth } from "./hr-payroll";
+import { mmTodayUTC } from "./business-day";
 
 // Ported from qq-app/src/lib/hr-attendance.ts, adapted to retail-app's schema:
 // - retail-app has no Employee.isSystem field (qq-app used it to exclude POS terminal
 //   "employees"), so that filter is simply dropped here.
-// - qq-app used Myanmar-timezone-aware helpers from "./business-day" (mmTodayUTC/mmNow).
-//   retail-app has no such module, so we use plain UTC-midnight helpers instead.
+// - Now uses the same Myanmar-timezone-aware business-day helpers as qq-app
+//   (see ./business-day) — plain UTC midnight used to flip the "day" boundary
+//   at 6:30am Myanmar time instead of local midnight.
 
-/** Today's calendar date at UTC midnight (matches the @db.Date storage convention). */
+/** Today's calendar date at Myanmar midnight, stored as UTC midnight (matches the @db.Date storage convention). */
 export function todayUTC(): Date {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  return mmTodayUTC();
 }
 
 /** All attendance rows for a month, keyed by employeeId+date. */

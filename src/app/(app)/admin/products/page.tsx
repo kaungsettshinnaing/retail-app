@@ -1,14 +1,12 @@
 import Link from "next/link";
 import { prisma as db } from "@/lib/db";
 import type { ProductType } from "@prisma/client";
+import { requireSession } from "@/lib/auth";
+import { adminDict } from "@/lib/i18n/dict/admin";
+import { commonDict } from "@/lib/i18n/dict/common";
 
 export const dynamic = "force-dynamic";
 
-const TYPE_LABELS: Record<ProductType, string> = {
-  REGULAR: "Regular",
-  PASS_THROUGH: "Pass-Through",
-  CONTACT_PRICE: "Contact Price",
-};
 const TYPE_COLORS: Record<ProductType, string> = {
   REGULAR: "bg-blue-100 text-blue-700",
   PASS_THROUGH: "bg-purple-100 text-purple-700",
@@ -20,6 +18,14 @@ export default async function ProductsPage({
 }: {
   searchParams: Promise<{ type?: string; cat?: string; q?: string; active?: string }>;
 }) {
+  const user = await requireSession();
+  const t = adminDict[user.language];
+  const c = commonDict[user.language];
+  const TYPE_LABELS: Record<ProductType, string> = {
+    REGULAR: t.productTypeRegular,
+    PASS_THROUGH: t.productTypePassThrough,
+    CONTACT_PRICE: t.productTypeContactPrice,
+  };
   const sp = await searchParams;
   const VALID_TYPES: ProductType[] = ["REGULAR", "PASS_THROUGH", "CONTACT_PRICE"];
   const typeFilter = VALID_TYPES.includes(sp.type as ProductType)
@@ -50,8 +56,8 @@ export default async function ProductsPage({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="section-title">Products</h1>
-        <Link href="/admin/products/new" className="btn-primary text-sm">+ New Product</Link>
+        <h1 className="section-title">{t.productTitle}</h1>
+        <Link href="/admin/products/new" className="btn-primary text-sm">+ {t.productNewButton}</Link>
       </div>
 
       {/* Filters */}
@@ -59,28 +65,28 @@ export default async function ProductsPage({
         <input
           name="q"
           defaultValue={q}
-          placeholder="Search name…"
+          placeholder={t.productSearchPlaceholder}
           className="input w-48 text-sm"
         />
         <select name="type" defaultValue={typeFilter ?? ""} className="input text-sm">
-          <option value="">All types</option>
-          <option value="REGULAR">Regular</option>
-          <option value="PASS_THROUGH">Pass-Through</option>
-          <option value="CONTACT_PRICE">Contact Price</option>
+          <option value="">{t.productAllTypes}</option>
+          <option value="REGULAR">{t.productTypeRegular}</option>
+          <option value="PASS_THROUGH">{t.productTypePassThrough}</option>
+          <option value="CONTACT_PRICE">{t.productTypeContactPrice}</option>
         </select>
         <select name="cat" defaultValue={catFilter ?? ""} className="input text-sm">
-          <option value="">All categories</option>
-          {categories.map((c: { id: string; name: string }) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
+          <option value="">{t.productAllCategories}</option>
+          {categories.map((cat: { id: string; name: string }) => (
+            <option key={cat.id} value={cat.id}>{cat.name}</option>
           ))}
         </select>
         <label className="flex items-center gap-1.5 text-sm text-gray-600">
           <input type="checkbox" name="active" value="true" defaultChecked={activeOnly}
             className="rounded"
           />
-          Active only
+          {t.productActiveOnly}
         </label>
-        <button type="submit" className="btn-outline text-sm px-3">Filter</button>
+        <button type="submit" className="btn-outline text-sm px-3">{c.filter}</button>
       </form>
 
       {/* Table */}
@@ -88,18 +94,18 @@ export default async function ProductsPage({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-              <th className="py-2 px-3 text-left">Product</th>
-              <th className="py-2 px-3 text-left">Category</th>
-              <th className="py-2 px-3 text-left">Type</th>
-              <th className="py-2 px-3 text-center">Variants</th>
-              <th className="py-2 px-3 text-left">Status</th>
-              <th className="py-2 px-3 text-right">Actions</th>
+              <th className="py-2 px-3 text-left">{t.productColProduct}</th>
+              <th className="py-2 px-3 text-left">{t.productCategoryFieldLabel}</th>
+              <th className="py-2 px-3 text-left">{t.productColType}</th>
+              <th className="py-2 px-3 text-center">{t.productColVariants}</th>
+              <th className="py-2 px-3 text-left">{c.status}</th>
+              <th className="py-2 px-3 text-right">{c.actions}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {products.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-10 text-center text-gray-400">No products found.</td>
+                <td colSpan={6} className="py-10 text-center text-gray-400">{t.productEmpty}</td>
               </tr>
             ) : (
               products.map((p) => (
@@ -123,15 +129,15 @@ export default async function ProductsPage({
                   <td className="py-2.5 px-3 text-center text-gray-600">{p._count.variants}</td>
                   <td className="py-2.5 px-3">
                     <span className={`badge ${p.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                      {p.isActive ? "Active" : "Inactive"}
+                      {p.isActive ? c.active : c.inactive}
                     </span>
                   </td>
                   <td className="py-2.5 px-3 text-right space-x-2">
                     <Link href={`/admin/products/${p.id}`} className="text-xs text-brand hover:underline">
-                      Edit
+                      {c.edit}
                     </Link>
                     <Link href={`/admin/products/${p.id}/variants`} className="text-xs text-gray-500 hover:underline">
-                      Variants
+                      {t.productVariantsLink}
                     </Link>
                   </td>
                 </tr>

@@ -77,6 +77,68 @@ export async function postSupplierInvoiceReceived(
   });
 }
 
+/**
+ * Posted when the warehouse-counted quantity differs from what was invoiced
+ * (short shipment, damage, or overage discovered at physical count).
+ * postSupplierInvoiceReceived already recorded Dr Inventory / Cr AP for the
+ * *invoiced* qty×cost — this corrects both accounts down (shortage) or up
+ * (overage) to match what was actually received, so Inventory and Accounts
+ * Payable reflect physical reality instead of staying permanently
+ * desynchronized from the warehouse count.
+ */
+export async function postSupplierInvoiceVariance(
+  tx: Tx,
+  invoice: { id: string; variance: number; placedAt: Date },
+): Promise<void> {
+  if (invoice.variance === 0) return;
+  const [inventory, ap] = await Promise.all([getCoreAccount(tx, "1030"), getCoreAccount(tx, "2000")]);
+  const amount = Math.abs(invoice.variance);
+  const lines =
+    invoice.variance < 0
+      ? [
+          { accountId: ap, debit: amount }, // owe the supplier less than originally invoiced
+          { accountId: inventory, credit: amount }, // never actually received this inventory
+        ]
+      : [
+          { accountId: inventory, debit: amount }, // received more than invoiced
+          { accountId: ap, credit: amount }, // owe the supplier for the extra
+        ];
+  await postEntry(tx, {
+    date: invoice.placedAt,
+    description:
+      invoice.variance < 0
+        ? "Supplier invoice variance — shortage/damage found at count"
+        : "Supplier invoice variance — overage found at count",
+    sourceType: "SupplierInvoice.variance",
+    sourceId: invoice.id,
+    lines,
+  });
+}
+
+/**
+ * Posted for a historical sale whose COGS was $0 at the time (sold before
+ * any supplier invoice for that variant had been placed, so OrderItem.unitCost
+ * was null). Supplemental to postOrderPaid's original "Order.cogs" entry —
+ * keyed by orderItemId so it can never double-post for the same item.
+ */
+export async function postCogsBackfill(
+  tx: Tx,
+  item: { id: string; amount: number; date: Date },
+): Promise<void> {
+  if (item.amount <= 0) return;
+  const [cogs, inventory] = await Promise.all([getCoreAccount(tx, "5000"), getCoreAccount(tx, "1030")]);
+  await postEntry(tx, {
+    date: item.date,
+    description: "Cost of goods sold — backfilled after late-placed supplier invoice",
+    sourceType: "OrderItem.cogsBackfill",
+    sourceId: item.id,
+    lines: [
+      { accountId: cogs, debit: item.amount },
+      { accountId: inventory, credit: item.amount },
+    ],
+  });
+}
+
 /** Posted when a supplier invoice is marked paid. */
 export async function postSupplierInvoicePaid(
   tx: Tx,

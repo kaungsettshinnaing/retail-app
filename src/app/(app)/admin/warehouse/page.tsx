@@ -1,9 +1,13 @@
 import { prisma as db } from "@/lib/db";
 import WarehouseEditor from "./WarehouseEditor";
+import { requireSession } from "@/lib/auth";
+import { adminDict } from "@/lib/i18n/dict/admin";
 
 export const dynamic = "force-dynamic";
 
 export default async function WarehousePage() {
+  const user = await requireSession();
+  const t = adminDict[user.language];
   const areas = await db.warehouseArea.findMany({
     orderBy: { sortOrder: "asc" },
     include: {
@@ -22,11 +26,11 @@ export default async function WarehousePage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="section-title">Warehouse Layout</h1>
+      <h1 className="section-title">{t.warehouseTitle}</h1>
       <p className="text-sm text-gray-500">
-        Define storage areas, optional shelves within an area, and sections (the actual locations stock is stored at).
+        {t.warehouseDescription}
       </p>
-      <WarehouseEditor areas={areas} />
+      <WarehouseEditor areas={areas} lang={user.language} />
     </div>
   );
 }

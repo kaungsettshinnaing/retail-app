@@ -19,7 +19,7 @@ export async function createAdvance(fd: FormData): Promise<ActionResult> {
   const year = parseInt(fd.get("year") as string);
 
   if (!employeeId || !amount || amount <= 0 || !month || !year) {
-    return { ok: false, error: "Employee, amount, and deduction month/year are required" };
+    return { ok: false, error: "advanceRequiredError" };
   }
 
   await db.$transaction(async (tx) => {
@@ -39,8 +39,8 @@ export async function createAdvance(fd: FormData): Promise<ActionResult> {
 export async function deleteInstalment(id: string): Promise<ActionResult> {
   await guard();
   const inst = await db.advanceInstalment.findUnique({ where: { id } });
-  if (!inst) return { ok: false, error: "Instalment not found" };
-  if (inst.deducted) return { ok: false, error: "Cannot delete an already-deducted instalment" };
+  if (!inst) return { ok: false, error: "instalmentNotFound" };
+  if (inst.deducted) return { ok: false, error: "cannotDeleteDeductedInstalment" };
 
   await db.advanceInstalment.delete({ where: { id } });
   const remaining = await db.advanceInstalment.count({ where: { advanceId: inst.advanceId } });

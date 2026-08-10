@@ -1,10 +1,14 @@
 import { prisma as db } from "@/lib/db";
 import { formatNumber } from "@/lib/format";
 import { getLowStockVariants } from "@/lib/inventory";
+import { requireSession } from "@/lib/auth";
+import { reportsDict } from "@/lib/i18n/dict/reports";
 
 export const dynamic = "force-dynamic";
 
 export default async function InventoryReportPage() {
+  const user = await requireSession();
+  const t = reportsDict[user.language];
   // Stock is only tracked for REGULAR products (PASS_THROUGH has no stock,
   // CONTACT_PRICE is quote-only) — see Product.type in schema.prisma.
   const [products, lowStockAlerts] = await Promise.all([
@@ -59,19 +63,19 @@ export default async function InventoryReportPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="section-title">Inventory Report</h1>
+      <h1 className="section-title">{t.inventoryReportTitle}</h1>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="card">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">SKUs Tracked</div>
+          <div className="text-xs text-gray-500 uppercase tracking-wide">{t.skusTracked}</div>
           <div className="text-lg font-semibold text-gray-800">{formatNumber(skuCount)}</div>
         </div>
         <div className="card">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Total Units in Stock</div>
+          <div className="text-xs text-gray-500 uppercase tracking-wide">{t.totalUnitsInStock}</div>
           <div className="text-lg font-semibold text-gray-800">{formatNumber(totalUnitsInStock)}</div>
         </div>
         <div className="card">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Low Stock Alerts</div>
+          <div className="text-xs text-gray-500 uppercase tracking-wide">{t.lowStockAlerts}</div>
           <div className={`text-lg font-semibold ${lowStockAlerts.length > 0 ? "text-red-700" : "text-gray-800"}`}>
             {formatNumber(lowStockAlerts.length)}
           </div>
@@ -81,15 +85,15 @@ export default async function InventoryReportPage() {
       {lowStockAlerts.length > 0 && (
         <div className="card overflow-hidden p-0 border-red-200">
           <div className="border-b border-red-100 bg-red-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-red-700">
-            Low Stock
+            {t.lowStockTitle}
           </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide">
-                <th className="py-2 px-4 text-left">Product</th>
-                <th className="py-2 px-4 text-left">SKU</th>
-                <th className="py-2 px-4 text-right">Stock</th>
-                <th className="py-2 px-4 text-right">Threshold</th>
+                <th className="py-2 px-4 text-left">{t.colProduct}</th>
+                <th className="py-2 px-4 text-left">{t.colSku}</th>
+                <th className="py-2 px-4 text-right">{t.colStock}</th>
+                <th className="py-2 px-4 text-right">{t.colThreshold}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -108,23 +112,23 @@ export default async function InventoryReportPage() {
 
       <div className="card overflow-hidden p-0">
         <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-          Stock by Product / Location
+          {t.stockByProductLocation}
         </div>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide">
-              <th className="py-2 px-4 text-left">Product</th>
-              <th className="py-2 px-4 text-left">Category</th>
-              <th className="py-2 px-4 text-left">SKU</th>
-              <th className="py-2 px-4 text-right">Stock</th>
-              <th className="py-2 px-4 text-left">Locations</th>
+              <th className="py-2 px-4 text-left">{t.colProduct}</th>
+              <th className="py-2 px-4 text-left">{t.colCategory}</th>
+              <th className="py-2 px-4 text-left">{t.colSku}</th>
+              <th className="py-2 px-4 text-right">{t.colStock}</th>
+              <th className="py-2 px-4 text-left">{t.colLocations}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {rows.length === 0 && (
               <tr>
                 <td className="py-8 px-4 text-center text-gray-400" colSpan={5}>
-                  No REGULAR products found.
+                  {t.noRegularProducts}
                 </td>
               </tr>
             )}
@@ -135,7 +139,7 @@ export default async function InventoryReportPage() {
                 <td className="py-2 px-4 text-gray-400 text-xs">{r.sku}</td>
                 <td className={`py-2 px-4 text-right font-medium ${r.isLow ? "text-red-700" : "text-gray-800"}`}>
                   {formatNumber(r.totalStock)}
-                  {r.isLow && <span className="badge bg-red-100 text-red-700 ml-2">Low</span>}
+                  {r.isLow && <span className="badge bg-red-100 text-red-700 ml-2">{t.lowBadge}</span>}
                 </td>
                 <td className="py-2 px-4 text-gray-500 text-xs">{r.locations}</td>
               </tr>

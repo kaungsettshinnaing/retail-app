@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
+import { requireSecret } from "@/lib/env-secret";
 
 // Edge middleware: gate staff routes behind a valid session cookie.
 // The /store/* paths are public and excluded.
 // Fine-grained role checks happen server-side in each module layout.
 
 const SESSION_COOKIE = "rs_session";
-const secret = new TextEncoder().encode(
-  process.env.AUTH_SECRET || "dev-only-secret-change-me",
-);
+const secret = new TextEncoder().encode(requireSecret("AUTH_SECRET", "dev-only-secret-change-me"));
 
 function isPublic(pathname: string): boolean {
   if (pathname === "/login") return true;

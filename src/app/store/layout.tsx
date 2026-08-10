@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSettings } from "@/lib/settings";
 import { getCustomerSession } from "@/lib/auth";
+import { getLanguageCookie } from "@/lib/i18n/actions";
 import { CartProvider } from "@/components/store/CartContext";
 import StoreNav from "@/components/store/StoreNav";
 
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function StoreLayout({ children }: { children: React.ReactNode }) {
   const [settings, customer] = await Promise.all([getSettings(), getCustomerSession()]);
+  const lang = customer?.language ?? (await getLanguageCookie());
 
   return (
     <CartProvider>
@@ -17,7 +19,7 @@ export default async function StoreLayout({ children }: { children: React.ReactN
             <Link href="/store" className="text-lg font-semibold text-brand">
               {settings.storeName}
             </Link>
-            <StoreNav customerName={customer?.name ?? null} />
+            <StoreNav customerName={customer?.name ?? null} isB2B={customer?.isB2B ?? false} lang={lang} />
           </div>
         </header>
         <main className="max-w-6xl mx-auto px-4 py-6">{children}</main>

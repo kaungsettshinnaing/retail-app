@@ -1,9 +1,13 @@
 import { prisma as db } from "@/lib/db";
 import CategoryEditor from "./CategoryEditor";
+import { requireSession } from "@/lib/auth";
+import { adminDict } from "@/lib/i18n/dict/admin";
 
 export const dynamic = "force-dynamic";
 
 export default async function CategoriesPage() {
+  const user = await requireSession();
+  const t = adminDict[user.language];
   const categories = await db.category.findMany({
     include: { children: { include: { _count: { select: { products: true } } } }, _count: { select: { products: true } } },
     where: { parentId: null },
@@ -36,10 +40,10 @@ export default async function CategoriesPage() {
   return (
     <div>
       <div className="mb-4">
-        <h1 className="section-title">Categories</h1>
-        <p className="text-sm text-gray-500">2-level tree: top-level categories and sub-categories</p>
+        <h1 className="section-title">{t.categoryTitle}</h1>
+        <p className="text-sm text-gray-500">{t.categoryDescription}</p>
       </div>
-      <CategoryEditor categories={flat} />
+      <CategoryEditor categories={flat} lang={user.language} />
     </div>
   );
 }

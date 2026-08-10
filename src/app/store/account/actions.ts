@@ -11,8 +11,15 @@ import {
   getCustomerSession,
 } from "@/lib/auth";
 import type { ActionResult } from "@/lib/action-result";
+import type { Language } from "@/lib/i18n/language";
 
-async function setCustomerCookie(customer: { id: string; name: string | null; email: string | null }) {
+async function setCustomerCookie(customer: {
+  id: string;
+  name: string | null;
+  email: string | null;
+  isB2B: boolean;
+  language: Language;
+}) {
   const token = await createCustomerToken(customer);
   const jar = await cookies();
   jar.delete(CUSTOMER_COOKIE);
@@ -33,11 +40,11 @@ export async function registerCustomer(input: {
 }): Promise<ActionResult> {
   const email = input.email.trim().toLowerCase();
   if (!input.name.trim() || !email || input.password.length < 6) {
-    return { ok: false, error: "Name, email, and a password of at least 6 characters are required" };
+    return { ok: false, error: "errNameEmailPasswordRequired" };
   }
 
   const existing = await db.customer.findUnique({ where: { email } });
-  if (existing) return { ok: false, error: "An account with this email already exists" };
+  if (existing) return { ok: false, error: "errEmailExists" };
 
   const customer = await db.customer.create({
     data: {
@@ -56,10 +63,10 @@ export async function loginCustomer(input: { email: string; password: string }):
   const email = input.email.trim().toLowerCase();
   const customer = await db.customer.findUnique({ where: { email } });
   if (!customer || !customer.isActive || !customer.passwordHash) {
-    return { ok: false, error: "Invalid email or password" };
+    return { ok: false, error: "errInvalidCredentials" };
   }
   if (!verifyPassword(input.password, customer.passwordHash)) {
-    return { ok: false, error: "Invalid email or password" };
+    return { ok: false, error: "errInvalidCredentials" };
   }
 
   await setCustomerCookie(customer);
@@ -77,7 +84,7 @@ export async function updateCustomerProfile(input: {
   address?: string;
 }): Promise<ActionResult> {
   const session = await getCustomerSession();
-  if (!session) return { ok: false, error: "Please sign in" };
+  if (!session) return { ok: false, error: "errPleaseSignIn" };
 
   await db.customer.update({
     where: { id: session.id },

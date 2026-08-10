@@ -22,11 +22,11 @@ export async function createLeaveRequest(fd: FormData): Promise<ActionResult> {
   const reason = ((fd.get("reason") as string | null) ?? "").trim();
 
   if (!employeeId || !startRaw || !endRaw) {
-    return { ok: false, error: "Employee, start date, and end date are required" };
+    return { ok: false, error: "leaveRequiredError" };
   }
   const startDate = parseDay(startRaw);
   const endDate = parseDay(endRaw);
-  if (endDate < startDate) return { ok: false, error: "End date must be on or after start date" };
+  if (endDate < startDate) return { ok: false, error: "leaveEndDateError" };
 
   await db.leaveRequest.create({
     data: { employeeId, startDate, endDate, reason: reason || null },
@@ -39,8 +39,8 @@ export async function createLeaveRequest(fd: FormData): Promise<ActionResult> {
 export async function reviewLeave(id: string, decision: "APPROVED" | "REJECTED"): Promise<ActionResult> {
   const session = await guard();
   const req = await db.leaveRequest.findUnique({ where: { id } });
-  if (!req) return { ok: false, error: "Leave request not found" };
-  if (req.status !== "PENDING") return { ok: false, error: "This request has already been reviewed" };
+  if (!req) return { ok: false, error: "leaveNotFound" };
+  if (req.status !== "PENDING") return { ok: false, error: "leaveAlreadyReviewed" };
 
   await db.leaveRequest.update({
     where: { id },

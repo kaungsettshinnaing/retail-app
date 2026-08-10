@@ -41,6 +41,7 @@ export async function loginAction(
     username: user.username,
     name: user.name,
     roles,
+    language: user.language,
   });
 
   const jar = await cookies();

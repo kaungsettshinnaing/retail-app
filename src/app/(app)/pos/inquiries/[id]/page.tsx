@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { prisma as db } from "@/lib/db";
 import { formatDateTime } from "@/lib/format";
+import { requireSession } from "@/lib/auth";
+import { posDict } from "@/lib/i18n/dict/pos";
 import InquiryDetail from "./InquiryDetail";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +12,8 @@ export default async function InquiryDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const user = await requireSession();
+  const t = posDict[user.language];
   const { id } = await params;
 
   const inquiry = await db.priceInquiry.findUnique({
@@ -27,14 +31,14 @@ export default async function InquiryDetailPage({
       <h1 className="section-title">{inquiry.product.name}</h1>
 
       <div className="card text-sm text-gray-600 space-y-1">
-        <p>Contact: <strong>{inquiry.contactName ?? inquiry.customer?.name ?? "—"}</strong></p>
-        {inquiry.contactPhone && <p>Phone: {inquiry.contactPhone}</p>}
-        {(inquiry.contactEmail || inquiry.customer?.email) && <p>Email: {inquiry.contactEmail ?? inquiry.customer?.email}</p>}
-        {inquiry.message && <p>Message: {inquiry.message}</p>}
-        <p>Received: {formatDateTime(inquiry.createdAt)} via {inquiry.channel}</p>
+        <p>{t.contactLabel} <strong>{inquiry.contactName ?? inquiry.customer?.name ?? "—"}</strong></p>
+        {inquiry.contactPhone && <p>{t.phoneLabel} {inquiry.contactPhone}</p>}
+        {(inquiry.contactEmail || inquiry.customer?.email) && <p>{t.emailLabel} {inquiry.contactEmail ?? inquiry.customer?.email}</p>}
+        {inquiry.message && <p>{t.messageLabel} {inquiry.message}</p>}
+        <p>{t.receivedPrefix} {formatDateTime(inquiry.createdAt)} {t.viaLabel} {inquiry.channel}</p>
         {inquiry.quotedAt && (
           <p>
-            Quoted by {inquiry.quotedBy?.name ?? "—"} on {formatDateTime(inquiry.quotedAt)}
+            {t.quotedByLabel(inquiry.quotedBy?.name ?? "—", formatDateTime(inquiry.quotedAt))}
           </p>
         )}
       </div>
@@ -44,6 +48,7 @@ export default async function InquiryDetailPage({
         productId={inquiry.productId}
         status={inquiry.status}
         quotedPrice={inquiry.quotedPrice}
+        lang={user.language}
       />
     </div>
   );

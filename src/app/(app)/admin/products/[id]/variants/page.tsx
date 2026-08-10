@@ -3,6 +3,8 @@ import Link from "next/link";
 import { prisma as db } from "@/lib/db";
 import VariantsEditor from "./VariantsEditor";
 import type { ProductType } from "@prisma/client";
+import { requireSession } from "@/lib/auth";
+import { adminDict } from "@/lib/i18n/dict/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,8 @@ export default async function VariantsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const user = await requireSession();
+  const t = adminDict[user.language];
 
   const product = await db.product.findUnique({
     where: { id },
@@ -32,24 +36,24 @@ export default async function VariantsPage({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="section-title">{product.name} — Variants</h1>
+          <h1 className="section-title">{product.name} {t.variantsSuffix}</h1>
           <p className="text-sm text-gray-500">
-            Type: <span className="font-medium">{product.type}</span>
+            {t.variantsTypeLabel} <span className="font-medium">{product.type}</span>
             {product.options.length > 0 && (
-              <> · Options: <span className="font-medium">{product.options.map((o) => o.name).join(", ")}</span></>
+              <> · {t.variantsOptionsLabel} <span className="font-medium">{product.options.map((o) => o.name).join(", ")}</span></>
             )}
           </p>
         </div>
         <Link href={`/admin/products/${id}`} className="btn-outline text-sm">
-          ← Edit Product
+          {t.variantsBackToProduct}
         </Link>
       </div>
 
       {product.options.length === 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          This product has no variant options defined. Add options (e.g. "Size", "Color") on the{" "}
-          <Link href={`/admin/products/${id}`} className="underline">Edit Product</Link> page if needed.
-          You can still add a single unnamed variant below.
+          {t.variantsWarningPart1}{" "}
+          <Link href={`/admin/products/${id}`} className="underline">{t.variantsWarningLinkText}</Link>{" "}
+          {t.variantsWarningPart2}
         </div>
       )}
 
@@ -58,6 +62,7 @@ export default async function VariantsPage({
         productType={product.type as ProductType}
         optionNames={product.options.map((o) => o.name)}
         variants={variants}
+        lang={user.language}
       />
     </div>
   );

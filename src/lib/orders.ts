@@ -1,6 +1,7 @@
 import { prisma as db } from "./db";
 import type { OrderChannel, PaymentMethod, Prisma } from "@prisma/client";
 import { postOrderPaid } from "./journal-postings";
+import { resolveVariantPrice } from "./pricing";
 
 class OrderActionError extends Error {}
 
@@ -14,7 +15,7 @@ export type CreateOrderItemInput = {
 export type CreateOrderInput = {
   channel?: OrderChannel; // defaults to POS
   cashierId?: string; // staff-placed (POS) orders
-  customerId?: string; // logged-in customer (online orders)
+  customerId?: string; // registered customer — logged-in (online) or selected by cashier (POS); drives B2B pricing
   customerName?: string;
   customerPhone?: string;
   shippingAddress?: string;
@@ -75,6 +76,11 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
 
   try {
     const orderId = await db.$transaction(async (tx) => {
+      const buyer = input.customerId
+        ? await tx.customer.findUnique({ where: { id: input.customerId }, select: { isB2B: true } })
+        : null;
+      const isB2BBuyer = buyer?.isB2B ?? false;
+
       let subtotal = 0;
       const prepared: {
         productId: string;
@@ -106,8 +112,9 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
           if (line.unitPriceOverride == null) throw new OrderActionError(`Enter a price for ${product.name}`);
           unitPrice = line.unitPriceOverride;
         } else {
-          if (variant!.price == null) throw new OrderActionError(`${product.name} has no price set`);
-          unitPrice = variant!.price;
+          const resolved = resolveVariantPrice(variant!, isB2BBuyer);
+          if (resolved == null) throw new OrderActionError(`${product.name} has no price set`);
+          unitPrice = resolved;
         }
 
         subtotal += unitPrice * line.qty;
@@ -160,8 +167,11 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
       for (const item of prepared) {
         let unitCost: number | null = null;
         if (item.variantId) {
+          // placedAt: not null — otherwise a draft/unconfirmed invoice line's
+          // provisional cost can outrank the last *actually received*
+          // purchase, since Postgres sorts NULL as highest under `DESC`.
           const lastPurchase = await tx.supplierInvoiceItem.findFirst({
-            where: { variantId: item.variantId, unitCost: { not: null } },
+            where: { variantId: item.variantId, unitCost: { not: null }, placedAt: { not: null } },
             orderBy: { placedAt: "desc" },
             select: { unitCost: true },
           });

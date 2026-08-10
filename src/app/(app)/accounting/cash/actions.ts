@@ -17,11 +17,11 @@ export async function createManualCashEntry(input: {
 }): Promise<ActionResult> {
   const session = await guard();
 
-  if (input.type !== "IN" && input.type !== "OUT") return { ok: false, error: "Invalid entry type" };
-  if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, error: "Enter a valid amount" };
-  if (!input.description.trim()) return { ok: false, error: "Enter a description" };
+  if (input.type !== "IN" && input.type !== "OUT") return { ok: false, error: "errInvalidEntryType" };
+  if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, error: "errEnterValidAmount" };
+  if (!input.description.trim()) return { ok: false, error: "errEnterDescription" };
   const date = new Date(`${input.date}T00:00:00.000Z`);
-  if (Number.isNaN(date.getTime())) return { ok: false, error: "Invalid date" };
+  if (Number.isNaN(date.getTime())) return { ok: false, error: "errInvalidDate" };
 
   await db.cashEntry.create({
     data: {

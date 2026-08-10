@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { prisma as db } from "@/lib/db";
 import { formatDateTime, formatMoney } from "@/lib/format";
+import { requireSession } from "@/lib/auth";
+import { posDict } from "@/lib/i18n/dict/pos";
+import { commonDict } from "@/lib/i18n/dict/common";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +15,16 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default async function InquiriesPage() {
+  const user = await requireSession();
+  const t = posDict[user.language];
+  const c = commonDict[user.language];
+  const STATUS_LABELS: Record<string, string> = {
+    OPEN: t.inquiryStatusOpen,
+    QUOTED: t.inquiryStatusQuoted,
+    CONVERTED: t.inquiryStatusConverted,
+    CLOSED: t.inquiryStatusClosed,
+  };
+
   const inquiries = await db.priceInquiry.findMany({
     where: { status: { in: ["OPEN", "QUOTED"] } },
     orderBy: { createdAt: "asc" },
@@ -20,16 +33,16 @@ export default async function InquiriesPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="section-title">Price Inquiries</h1>
+      <h1 className="section-title">{t.priceInquiriesTitle}</h1>
       <div className="card overflow-hidden p-0">
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-              <th className="py-2 px-3 text-left">Product</th>
-              <th className="py-2 px-3 text-left">Contact</th>
-              <th className="py-2 px-3 text-left">Received</th>
-              <th className="py-2 px-3 text-right">Quoted Price</th>
-              <th className="py-2 px-3 text-left">Status</th>
+              <th className="py-2 px-3 text-left">{t.colProduct}</th>
+              <th className="py-2 px-3 text-left">{t.colContact}</th>
+              <th className="py-2 px-3 text-left">{t.colReceived}</th>
+              <th className="py-2 px-3 text-right">{t.colQuotedPrice}</th>
+              <th className="py-2 px-3 text-left">{c.status}</th>
               <th className="py-2 px-3" />
             </tr>
           </thead>
@@ -37,7 +50,7 @@ export default async function InquiriesPage() {
             {inquiries.length === 0 && (
               <tr>
                 <td colSpan={6} className="py-8 text-center text-sm text-gray-400">
-                  No open inquiries.
+                  {t.noOpenInquiries}
                 </td>
               </tr>
             )}
@@ -51,11 +64,11 @@ export default async function InquiriesPage() {
                 <td className="py-2 px-3 text-sm text-gray-500">{formatDateTime(inq.createdAt)}</td>
                 <td className="py-2 px-3 text-sm text-right">{inq.quotedPrice != null ? formatMoney(inq.quotedPrice) : "—"}</td>
                 <td className="py-2 px-3">
-                  <span className={`badge ${STATUS_STYLES[inq.status] ?? ""}`}>{inq.status}</span>
+                  <span className={`badge ${STATUS_STYLES[inq.status] ?? ""}`}>{STATUS_LABELS[inq.status] ?? inq.status}</span>
                 </td>
                 <td className="py-2 px-3 text-right">
                   <Link href={`/pos/inquiries/${inq.id}`} className="text-sm text-brand hover:underline">
-                    Open
+                    {t.openLink}
                   </Link>
                 </td>
               </tr>

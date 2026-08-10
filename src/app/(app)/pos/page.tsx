@@ -1,5 +1,6 @@
 import { prisma as db } from "@/lib/db";
 import { getVariantsTotalStock } from "@/lib/inventory";
+import { requireSession } from "@/lib/auth";
 import POSScreen from "./POSScreen";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,7 @@ export default async function PosPage({
 }: {
   searchParams: Promise<{ inquiryProductId?: string; inquiryPrice?: string }>;
 }) {
+  const user = await requireSession();
   const { inquiryProductId, inquiryPrice } = await searchParams;
   const price = Number(inquiryPrice);
   const initialLine =
@@ -40,9 +42,10 @@ export default async function PosPage({
       sku: v.sku,
       optionValues: v.optionValues,
       price: v.price,
+      b2bPrice: v.b2bPrice,
       stock: stockMap[v.id] ?? 0,
     })),
   }));
 
-  return <POSScreen catalog={catalog} initialLine={initialLine} />;
+  return <POSScreen catalog={catalog} initialLine={initialLine} lang={user.language} />;
 }

@@ -1,0 +1,43 @@
+const en = {
+  title: "Profile",
+  accountInfo: "Account Information",
+  yourName: "Name",
+  yourUsername: "Username",
+  yourRoles: "Roles",
+  changePassword: "Change Password",
+  currentPassword: "Current Password",
+  newPassword: "New Password",
+  confirmPassword: "Confirm New Password",
+  updatePassword: "Update Password",
+  passwordUpdated: "Password updated successfully.",
+  passwordMismatch: "New passwords do not match.",
+  passwordTooShort: "Password must be at least 6 characters.",
+  currentPasswordWrong: "Current password is incorrect.",
+  language: "Language",
+  languageDesc: "Choose the language used across the app.",
+  saveLanguage: "Save Language",
+  languageUpdated: "Language updated.",
+};
+
+const my: typeof en = {
+  title: "ပရိုဖိုင်",
+  accountInfo: "အကောင့်အချက်အလက်",
+  yourName: "အမည်",
+  yourUsername: "အသုံးပြုသူအမည်",
+  yourRoles: "ရာထူးများ",
+  changePassword: "စကားဝှက်ပြောင်းရန်",
+  currentPassword: "လက်ရှိစကားဝှက်",
+  newPassword: "စကားဝှက်အသစ်",
+  confirmPassword: "စကားဝှက်အသစ် အတည်ပြုပါ",
+  updatePassword: "စကားဝှက်မွမ်းမံရန်",
+  passwordUpdated: "စကားဝှက်ကို အောင်မြင်စွာ မွမ်းမံပြီးပါပြီ။",
+  passwordMismatch: "စကားဝှက်အသစ်များ မတူညီပါ။",
+  passwordTooShort: "စကားဝှက်သည် အနည်းဆုံး စာလုံး ၆ လုံး ရှိရမည်။",
+  currentPasswordWrong: "လက်ရှိစကားဝှက် မှားယွင်းနေပါသည်။",
+  language: "ဘာသာစကား",
+  languageDesc: "အက်ပ်တစ်လျှောက် အသုံးပြုမည့်ဘာသာစကားကို ရွေးချယ်ပါ။",
+  saveLanguage: "ဘာသာစကား သိမ်းရန်",
+  languageUpdated: "ဘာသာစကား မွမ်းမံပြီးပါပြီ။",
+};
+
+export const profileDict = { EN: en, MY: my };

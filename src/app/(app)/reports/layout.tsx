@@ -1,21 +1,22 @@
 import { requireAnyRole } from "@/lib/auth";
 import TabNav from "@/components/TabNav";
 import type { TabDef } from "@/components/TabNav";
-
-const TABS: TabDef[] = [
-  { href: "/reports/pl",        label: "P&L" },
-  { href: "/reports/sales",     label: "Sales" },
-  { href: "/reports/inventory", label: "Inventory" },
-  { href: "/reports/payroll",   label: "Payroll" },
-  { href: "/reports/journal",   label: "Journal" },
-];
+import { reportsDict } from "@/lib/i18n/dict/reports";
 
 export default async function ReportsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  await requireAnyRole(["ADMIN", "MANAGER"]);
+  const user = await requireAnyRole(["ADMIN", "MANAGER"]);
+  const t = reportsDict[user.language];
+  const TABS: TabDef[] = [
+    { href: "/reports/pl",        label: t.tabPL },
+    { href: "/reports/sales",     label: t.tabSales },
+    { href: "/reports/inventory", label: t.tabInventory },
+    { href: "/reports/payroll",   label: t.tabPayroll },
+    { href: "/reports/journal",   label: t.tabJournal },
+  ];
   return (
     <div className="space-y-4">
       <div className="border-b border-gray-200 pb-3">

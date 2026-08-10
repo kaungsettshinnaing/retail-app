@@ -9,6 +9,7 @@ import { saveUpload } from "@/lib/upload";
 const VariantSchema = z.object({
   sku: z.string().min(1).max(100),
   price: z.coerce.number().int().min(0).optional(),
+  b2bPrice: z.coerce.number().int().min(0).optional(),
   comparePrice: z.coerce.number().int().min(0).optional(),
   sortOrder: z.coerce.number().int().default(0),
   isActive: z.coerce.boolean().default(true),
@@ -30,11 +31,12 @@ export async function createVariant(productId: string, formData: FormData) {
   }
 
   const product = await db.product.findUnique({ where: { id: productId } });
-  if (!product) return { ok: false as const, error: "Product not found" };
+  if (!product) return { ok: false as const, error: "errProductNotFound" };
 
   const raw = {
     sku: formData.get("sku"),
     price: product.type === "CONTACT_PRICE" ? undefined : (formData.get("price") || undefined),
+    b2bPrice: product.type === "CONTACT_PRICE" ? undefined : (formData.get("b2bPrice") || undefined),
     comparePrice: formData.get("comparePrice") || undefined,
     sortOrder: formData.get("sortOrder") || "0",
     isActive: formData.get("isActive") !== "false",
@@ -51,7 +53,7 @@ export async function createVariant(productId: string, formData: FormData) {
       const result = await saveUpload(imageFile, "products");
       imageUrl = result.path;
     } catch (err: unknown) {
-      return { ok: false as const, error: err instanceof Error ? err.message : "Upload failed" };
+      return { ok: false as const, error: err instanceof Error ? err.message : "errUploadFailed" };
     }
   }
 
@@ -62,6 +64,7 @@ export async function createVariant(productId: string, formData: FormData) {
         sku: parsed.data.sku,
         optionValues,
         price: parsed.data.price ?? null,
+        b2bPrice: parsed.data.b2bPrice ?? null,
         comparePrice: parsed.data.comparePrice ?? null,
         sortOrder: parsed.data.sortOrder,
         isActive: parsed.data.isActive,
@@ -70,7 +73,7 @@ export async function createVariant(productId: string, formData: FormData) {
     });
   } catch (err: unknown) {
     if ((err as { code?: string }).code === "P2002") {
-      return { ok: false as const, error: "SKU already exists" };
+      return { ok: false as const, error: "errSkuExists" };
     }
     throw err;
   }
@@ -89,18 +92,19 @@ export async function updateVariant(productId: string, variantId: string, formDa
   }
 
   const product = await db.product.findUnique({ where: { id: productId } });
-  if (!product) return { ok: false as const, error: "Product not found" };
+  if (!product) return { ok: false as const, error: "errProductNotFound" };
 
   const raw = {
     sku: formData.get("sku"),
     price: product.type === "CONTACT_PRICE" ? undefined : (formData.get("price") || undefined),
+    b2bPrice: product.type === "CONTACT_PRICE" ? undefined : (formData.get("b2bPrice") || undefined),
     comparePrice: formData.get("comparePrice") || undefined,
     sortOrder: formData.get("sortOrder") || "0",
     isActive: formData.get("isActive") !== "false",
   };
 
   const parsed = VariantSchema.safeParse(raw);
-  if (!parsed.success) return { ok: false as const, error: "Invalid data" };
+  if (!parsed.success) return { ok: false as const, error: "errInvalidData" };
 
   let imageUrl: string | undefined;
   const imageFile = formData.get("image") as File | null;
@@ -109,7 +113,7 @@ export async function updateVariant(productId: string, variantId: string, formDa
       const result = await saveUpload(imageFile, "products");
       imageUrl = result.path;
     } catch (err: unknown) {
-      return { ok: false as const, error: err instanceof Error ? err.message : "Upload failed" };
+      return { ok: false as const, error: err instanceof Error ? err.message : "errUploadFailed" };
     }
   }
 
@@ -120,6 +124,7 @@ export async function updateVariant(productId: string, variantId: string, formDa
         sku: parsed.data.sku,
         optionValues,
         price: parsed.data.price ?? null,
+        b2bPrice: parsed.data.b2bPrice ?? null,
         comparePrice: parsed.data.comparePrice ?? null,
         sortOrder: parsed.data.sortOrder,
         isActive: parsed.data.isActive,
@@ -128,7 +133,7 @@ export async function updateVariant(productId: string, variantId: string, formDa
     });
   } catch (err: unknown) {
     if ((err as { code?: string }).code === "P2002") {
-      return { ok: false as const, error: "SKU already exists" };
+      return { ok: false as const, error: "errSkuExists" };
     }
     throw err;
   }
@@ -141,7 +146,7 @@ export async function deleteVariant(productId: string, variantId: string) {
   await requireAnyRole(["ADMIN", "MANAGER"]);
 
   const hasStock = await db.stockEntry.count({ where: { variantId } });
-  if (hasStock > 0) return { ok: false as const, error: "Variant has stock entries — deactivate instead" };
+  if (hasStock > 0) return { ok: false as const, error: "errVariantHasStock" };
 
   await db.productVariant.delete({ where: { id: variantId } });
   revalidate(productId);

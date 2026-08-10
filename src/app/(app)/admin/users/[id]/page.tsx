@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { prisma as db } from "@/lib/db";
 import { updateUser } from "../actions";
 import { UserForm } from "../UserForm";
+import { requireSession } from "@/lib/auth";
+import { adminDict } from "@/lib/i18n/dict/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +13,8 @@ export default async function EditUserPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const sessionUser = await requireSession();
+  const t = adminDict[sessionUser.language];
   const user = await db.user.findUnique({ where: { id } });
   if (!user) notFound();
 
@@ -23,7 +27,8 @@ export default async function EditUserPage({
         action={action}
         defaults={user}
         userId={id}
-        submitLabel="Save Changes"
+        submitLabel={t.saveChanges}
+        lang={sessionUser.language}
       />
     </div>
   );

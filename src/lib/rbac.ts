@@ -1,8 +1,8 @@
 // Role-based access control. Pure module — safe to use in middleware and client components.
 
-export type Role = "ADMIN" | "MANAGER" | "CASHIER" | "STOREMAN" | "HR";
+export type Role = "ADMIN" | "MANAGER" | "CASHIER" | "STOREMAN" | "HR" | "BD_LEAD" | "BD_REP";
 
-export const ALL_ROLES: Role[] = ["ADMIN", "MANAGER", "CASHIER", "STOREMAN", "HR"];
+export const ALL_ROLES: Role[] = ["ADMIN", "MANAGER", "CASHIER", "STOREMAN", "HR", "BD_LEAD", "BD_REP"];
 
 export interface ModuleDef {
   key: string;
@@ -18,6 +18,7 @@ export const MODULES: ModuleDef[] = [
   { key: "accounting", label: "Accounting", href: "/accounting", roles: ["MANAGER", "ADMIN"],                               icon: "📒" },
   { key: "reports",    label: "Reports",    href: "/reports",    roles: ["MANAGER", "ADMIN"],                               icon: "📊" },
   { key: "hr",         label: "HR",         href: "/hr",         roles: ["HR", "MANAGER", "ADMIN"],                        icon: "👥" },
+  { key: "b2b",        label: "B2B",        href: "/b2b",        roles: ["BD_REP", "BD_LEAD", "MANAGER", "ADMIN"],          icon: "🤝" },
   { key: "admin",      label: "Admin",      href: "/admin",      roles: ["ADMIN"],                                          icon: "⚙️" },
 ];
 
@@ -25,17 +26,25 @@ export function hasAnyRole(userRoles: Role[], allowed: Role[]): boolean {
   return userRoles.some((r) => allowed.includes(r));
 }
 
+// B2B lead pipeline: ADMIN/MANAGER/BD_LEAD see and assign every lead; BD_REP
+// sees and edits only leads they own.
+export function canManageAllLeads(userRoles: Role[]): boolean {
+  return hasAnyRole(userRoles, ["ADMIN", "MANAGER", "BD_LEAD"]);
+}
+
 export function modulesFor(userRoles: Role[]): ModuleDef[] {
   return MODULES.filter((m) => hasAnyRole(userRoles, m.roles));
 }
 
-const ROLE_PRIORITY: Role[] = ["ADMIN", "MANAGER", "HR", "CASHIER", "STOREMAN"];
+const ROLE_PRIORITY: Role[] = ["ADMIN", "MANAGER", "HR", "CASHIER", "STOREMAN", "BD_LEAD", "BD_REP"];
 const LANDING: Record<Role, string> = {
   ADMIN:    "/admin",
   MANAGER:  "/pos",
   HR:       "/hr",
   CASHIER:  "/pos",
   STOREMAN: "/warehouse",
+  BD_LEAD:  "/b2b",
+  BD_REP:   "/b2b",
 };
 
 export function landingFor(userRoles: Role[]): string | null {
@@ -56,5 +65,6 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
   "/accounting": ["MANAGER", "ADMIN"],
   "/reports":    ["MANAGER", "ADMIN"],
   "/hr":         ["HR", "MANAGER", "ADMIN"],
+  "/b2b":        ["BD_REP", "BD_LEAD", "MANAGER", "ADMIN"],
   "/admin":      ["ADMIN"],
 };

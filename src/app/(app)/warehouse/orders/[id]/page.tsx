@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { prisma as db } from "@/lib/db";
 import { formatDateTime } from "@/lib/format";
+import { requireSession } from "@/lib/auth";
+import { warehouseDict } from "@/lib/i18n/dict/warehouse";
 import PickingDetail from "./PickingDetail";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +12,17 @@ export default async function WarehouseOrderDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const user = await requireSession();
+  const t = warehouseDict[user.language];
+  const STATUS_LABELS: Record<string, string> = {
+    PENDING: t.statusPending,
+    PICKING: t.statusPicking,
+    PACKED: t.statusPacked,
+    READY: t.statusReady,
+    DELIVERED: t.statusDelivered,
+    PICKED_UP: t.statusPickedUp,
+    CANCELLED: t.statusCancelled,
+  };
   const { id } = await params;
 
   const order = await db.order.findUnique({
@@ -65,9 +78,9 @@ export default async function WarehouseOrderDetailPage({
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="section-title">Order #{order.id.slice(-8).toUpperCase()}</h1>
+        <h1 className="section-title">{t.orderTitlePrefix}{order.id.slice(-8).toUpperCase()}</h1>
         <p className="text-sm text-gray-500">
-          {order.customerName || order.customer?.name || "Walk-in customer"} — {order.channel}
+          {order.customerName || order.customer?.name || t.walkInCustomer} — {order.channel}
         </p>
       </div>
 
@@ -75,15 +88,16 @@ export default async function WarehouseOrderDetailPage({
         orderId={order.id}
         orderStatus={order.status}
         items={items}
+        lang={user.language}
       />
 
       {order.logs.length > 0 && (
         <div className="card">
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">Activity</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">{t.activityTitle}</h3>
           <ul className="space-y-1 text-xs text-gray-500">
             {order.logs.map((log) => (
               <li key={log.id}>
-                {formatDateTime(log.createdAt)} — <strong>{log.actor?.name ?? "System"}</strong> {log.status}
+                {formatDateTime(log.createdAt)} — <strong>{log.actor?.name ?? t.systemActor}</strong> {STATUS_LABELS[log.status] ?? log.status}
               </li>
             ))}
           </ul>

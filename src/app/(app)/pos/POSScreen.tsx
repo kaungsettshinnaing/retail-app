@@ -3,14 +3,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatMoney } from "@/lib/format";
-import { submitPosOrder } from "./actions";
+import { resolveVariantPrice } from "@/lib/pricing";
+import { submitPosOrder, searchCustomers, type CustomerSearchResult } from "./actions";
 import type { PaymentMethod } from "@prisma/client";
+import { posDict } from "@/lib/i18n/dict/pos";
+import { commonDict } from "@/lib/i18n/dict/common";
+import type { Language } from "@/lib/i18n/language";
 
 type Variant = {
   id: string;
   sku: string;
   optionValues: unknown;
   price: number | null;
+  b2bPrice: number | null;
   stock: number;
 };
 type Product = {
@@ -40,11 +45,24 @@ function variantOptionLabel(optionValues: unknown): string {
 
 type InitialLine = { productId: string; price: number } | null;
 
-export default function POSScreen({ catalog, initialLine = null }: { catalog: Product[]; initialLine?: InitialLine }) {
+export default function POSScreen({
+  catalog,
+  initialLine = null,
+  lang,
+}: {
+  catalog: Product[];
+  initialLine?: InitialLine;
+  lang: Language;
+}) {
+  const t = posDict[lang];
+  const c = commonDict[lang];
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerSearchResult | null>(null);
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [customerResults, setCustomerResults] = useState<CustomerSearchResult[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
   const [discount, setDiscount] = useState(0);
   const [notes, setNotes] = useState("");
@@ -68,6 +86,34 @@ export default function POSScreen({ catalog, initialLine = null }: { catalog: Pr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!customerQuery.trim()) {
+      setCustomerResults([]);
+      return;
+    }
+    const handle = setTimeout(() => {
+      searchCustomers(customerQuery).then(setCustomerResults).catch(() => setCustomerResults([]));
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [customerQuery]);
+
+  // Selecting/clearing a registered customer switches wholesale pricing —
+  // recompute prices already in the cart (CONTACT_PRICE lines are manually
+  // agreed and stay untouched).
+  useEffect(() => {
+    setCart((prev) =>
+      prev.map((l) => {
+        if (l.type === "CONTACT_PRICE") return l;
+        const product = catalog.find((p) => p.id === l.productId);
+        const variant = product?.variants.find((v) => v.id === l.variantId);
+        if (!variant) return l;
+        const resolved = resolveVariantPrice(variant, selectedCustomer?.isB2B ?? false);
+        return resolved != null ? { ...l, unitPrice: resolved } : l;
+      })
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCustomer?.id]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return catalog;
@@ -85,18 +131,18 @@ export default function POSScreen({ catalog, initialLine = null }: { catalog: Pr
   }, [search, catalog]);
 
   function addToCart(product: Product, variant: Variant, presetPrice?: number) {
-    let unitPrice = variant.price;
+    let unitPrice = resolveVariantPrice(variant, selectedCustomer?.isB2B ?? false);
     if (product.type === "CONTACT_PRICE") {
       if (presetPrice != null) {
         unitPrice = presetPrice;
       } else {
         const defaultValue =
           suggestedPrice?.productId === product.id ? String(suggestedPrice.price) : undefined;
-        const input = prompt(`Enter agreed price for ${product.name} (${variant.sku}):`, defaultValue);
+        const input = prompt(t.agreedPricePrompt(product.name, variant.sku), defaultValue);
         if (input === null) return;
         const parsed = Number(input);
         if (!Number.isFinite(parsed) || parsed <= 0) {
-          alert("Enter a valid price");
+          alert(t.alertInvalidPrice);
           return;
         }
         unitPrice = parsed;
@@ -104,7 +150,7 @@ export default function POSScreen({ catalog, initialLine = null }: { catalog: Pr
       }
     }
     if (unitPrice == null) {
-      alert(`${product.name} has no price set`);
+      alert(t.alertNoPriceSet(product.name));
       return;
     }
 
@@ -148,20 +194,21 @@ export default function POSScreen({ catalog, initialLine = null }: { catalog: Pr
 
   async function handleCheckout() {
     if (cart.length === 0) {
-      setError("Add at least one item to the order");
+      setError(t.errorAddAtLeastOneItem);
       return;
     }
     for (const l of cart) {
       if (l.maxStock != null && l.qty > l.maxStock) {
-        setError(`${l.productName} (${l.sku}) only has ${l.maxStock} in stock`);
+        setError(t.errorStockExceeded(l.productName, l.sku, l.maxStock));
         return;
       }
     }
     setSubmitting(true);
     setError("");
     const res = await submitPosOrder({
-      customerName: customerName || undefined,
-      customerPhone: customerPhone || undefined,
+      customerId: selectedCustomer?.id,
+      customerName: selectedCustomer?.name ?? (customerName || undefined),
+      customerPhone: selectedCustomer?.phone ?? (customerPhone || undefined),
       paymentMethod,
       discount,
       notes: notes || undefined,
@@ -182,18 +229,18 @@ export default function POSScreen({ catalog, initialLine = null }: { catalog: Pr
       <div className="lg:col-span-2 space-y-3">
         {suggestedPrice && (
           <div className="rounded bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
-            This product was quoted at {formatMoney(suggestedPrice.price)} — pick the variant below to add it at that price.
+            {t.quotedBannerBefore} {formatMoney(suggestedPrice.price)} {t.quotedBannerAfter}
           </div>
         )}
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search product name or SKU…"
+          placeholder={t.searchProductPlaceholder}
           className="input w-full"
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[70vh] overflow-y-auto">
           {filtered.length === 0 && (
-            <p className="text-sm text-gray-400 col-span-2 text-center py-8">No products match your search.</p>
+            <p className="text-sm text-gray-400 col-span-2 text-center py-8">{t.noProductsMatch}</p>
           )}
           {filtered.flatMap((p) =>
             p.variants.map((v) => (
@@ -207,14 +254,18 @@ export default function POSScreen({ catalog, initialLine = null }: { catalog: Pr
                 {v.sku && <p className="text-xs text-gray-400">{v.sku}{variantOptionLabel(v.optionValues) ? ` — ${variantOptionLabel(v.optionValues)}` : ""}</p>}
                 <div className="flex items-center justify-between mt-1">
                   <span className="text-sm font-semibold text-brand">
-                    {p.type === "CONTACT_PRICE" ? "Contact for Price" : v.price != null ? formatMoney(v.price) : "—"}
+                    {p.type === "CONTACT_PRICE"
+                      ? t.contactForPrice
+                      : resolveVariantPrice(v, selectedCustomer?.isB2B ?? false) != null
+                        ? formatMoney(resolveVariantPrice(v, selectedCustomer?.isB2B ?? false)!)
+                        : "—"}
                   </span>
                   {p.type === "REGULAR" && (
                     <span className={`badge ${v.stock > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
                       {v.stock} {p.unit}
                     </span>
                   )}
-                  {p.type === "PASS_THROUGH" && <span className="badge bg-blue-100 text-blue-700">On Demand</span>}
+                  {p.type === "PASS_THROUGH" && <span className="badge bg-blue-100 text-blue-700">{t.onDemand}</span>}
                 </div>
               </button>
             ))
@@ -223,11 +274,11 @@ export default function POSScreen({ catalog, initialLine = null }: { catalog: Pr
       </div>
 
       <div className="card space-y-3 h-fit">
-        <h2 className="section-title">Cart</h2>
+        <h2 className="section-title">{t.cartTitle}</h2>
         {error && <div className="rounded bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{error}</div>}
         <div className="space-y-2 max-h-64 overflow-y-auto">
           {cart.length === 0 ? (
-            <p className="text-sm text-gray-400 py-4 text-center">Cart is empty</p>
+            <p className="text-sm text-gray-400 py-4 text-center">{t.cartEmpty}</p>
           ) : (
             cart.map((l) => (
               <div key={l.key} className="flex items-center gap-2 text-sm border-b border-gray-50 pb-2">
@@ -250,28 +301,73 @@ export default function POSScreen({ catalog, initialLine = null }: { catalog: Pr
         </div>
 
         <div className="space-y-2 pt-2 border-t border-gray-100">
-          <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Customer name (optional)" className="input w-full text-sm" />
-          <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Phone (optional)" className="input w-full text-sm" />
+          {selectedCustomer ? (
+            <div className="flex items-center justify-between rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm">
+              <div className="min-w-0">
+                <span className="text-gray-800">{selectedCustomer.name ?? t.unnamedCustomer}</span>
+                {selectedCustomer.isB2B && (
+                  <span className="badge bg-brand text-white ml-1.5 text-[10px]">{t.wholesaleBadge}</span>
+                )}
+                {selectedCustomer.phone && (
+                  <span className="block text-xs text-gray-400">{selectedCustomer.phone}</span>
+                )}
+              </div>
+              <button onClick={() => setSelectedCustomer(null)} className="shrink-0 text-xs text-red-500 hover:underline">
+                {t.changeCustomer}
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="relative">
+                <input
+                  value={customerQuery}
+                  onChange={(e) => setCustomerQuery(e.target.value)}
+                  placeholder={t.searchCustomerPlaceholder}
+                  className="input w-full text-sm"
+                />
+                {customerResults.length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-md">
+                    {customerResults.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => {
+                          setSelectedCustomer(c);
+                          setCustomerQuery("");
+                          setCustomerResults([]);
+                        }}
+                        className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-gray-50"
+                      >
+                        <span className="truncate">{c.name ?? t.unnamedCustomer}{c.phone ? ` · ${c.phone}` : ""}</span>
+                        {c.isB2B && <span className="badge bg-brand text-white text-[10px] shrink-0 ml-2">B2B</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder={t.walkInNamePlaceholder} className="input w-full text-sm" />
+              <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder={t.phoneOptionalPlaceholder} className="input w-full text-sm" />
+            </>
+          )}
           <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)} className="input w-full text-sm">
-            <option value="CASH">Cash</option>
-            <option value="TRANSFER">Bank Transfer</option>
-            <option value="COD">Cash on Delivery</option>
+            <option value="CASH">{t.paymentCash}</option>
+            <option value="TRANSFER">{t.paymentTransfer}</option>
+            <option value="COD">{t.paymentCod}</option>
           </select>
           <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500">Discount</label>
+            <label className="text-xs text-gray-500">{t.discountLabel}</label>
             <input type="number" min={0} value={discount} onChange={(e) => setDiscount(Number(e.target.value))} className="input flex-1 text-sm" />
           </div>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes (optional)" rows={2} className="input w-full text-sm" />
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t.notesOptionalPlaceholder} rows={2} className="input w-full text-sm" />
         </div>
 
         <div className="pt-2 border-t border-gray-100 space-y-1 text-sm">
-          <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>{formatMoney(subtotal)}</span></div>
-          <div className="flex justify-between text-gray-500"><span>Discount</span><span>-{formatMoney(discount)}</span></div>
-          <div className="flex justify-between text-base font-semibold text-gray-800"><span>Total</span><span>{formatMoney(total)}</span></div>
+          <div className="flex justify-between text-gray-500"><span>{t.subtotalLabel}</span><span>{formatMoney(subtotal)}</span></div>
+          <div className="flex justify-between text-gray-500"><span>{t.discountLabel}</span><span>-{formatMoney(discount)}</span></div>
+          <div className="flex justify-between text-base font-semibold text-gray-800"><span>{c.total}</span><span>{formatMoney(total)}</span></div>
         </div>
 
         <button onClick={handleCheckout} disabled={submitting} className="btn-primary w-full">
-          {submitting ? "Processing…" : "Complete Sale"}
+          {submitting ? t.processingLabel : t.completeSaleLabel}
         </button>
       </div>
     </div>

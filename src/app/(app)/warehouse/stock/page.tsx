@@ -1,6 +1,8 @@
 import { prisma as db } from "@/lib/db";
 import { getLowStockVariants } from "@/lib/inventory";
 import { formatNumber } from "@/lib/format";
+import { requireSession } from "@/lib/auth";
+import { warehouseDict } from "@/lib/i18n/dict/warehouse";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +12,9 @@ function variantLabel(optionValues: unknown): string {
 }
 
 export default async function StockOverviewPage() {
+  const user = await requireSession();
+  const t = warehouseDict[user.language];
+
   const [products, lowStock] = await Promise.all([
     db.product.findMany({
       where: { isActive: true },
@@ -36,15 +41,15 @@ export default async function StockOverviewPage() {
     <div className="space-y-6">
       {lowStock.length > 0 && (
         <div>
-          <h2 className="text-sm font-semibold text-amber-700 mb-2">Low Stock Alerts</h2>
+          <h2 className="text-sm font-semibold text-amber-700 mb-2">{t.lowStockAlertsTitle}</h2>
           <div className="card overflow-hidden p-0">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100 bg-amber-50 text-xs text-amber-700 uppercase tracking-wide">
-                  <th className="py-2 px-3 text-left">Product</th>
-                  <th className="py-2 px-3 text-left">SKU</th>
-                  <th className="py-2 px-3 text-center">Stock</th>
-                  <th className="py-2 px-3 text-center">Threshold</th>
+                  <th className="py-2 px-3 text-left">{t.colProduct}</th>
+                  <th className="py-2 px-3 text-left">{t.colSku}</th>
+                  <th className="py-2 px-3 text-center">{t.colStock}</th>
+                  <th className="py-2 px-3 text-center">{t.colThreshold}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -63,16 +68,16 @@ export default async function StockOverviewPage() {
       )}
 
       <div>
-        <h1 className="section-title">Stock Overview</h1>
+        <h1 className="section-title">{t.stockOverviewTitle}</h1>
         <div className="card overflow-hidden p-0">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                <th className="py-2 px-3 text-left">Product</th>
-                <th className="py-2 px-3 text-left">Variant</th>
-                <th className="py-2 px-3 text-left">SKU</th>
-                <th className="py-2 px-3 text-center">Total Stock</th>
-                <th className="py-2 px-3 text-left">By Location</th>
+                <th className="py-2 px-3 text-left">{t.colProduct}</th>
+                <th className="py-2 px-3 text-left">{t.colVariant}</th>
+                <th className="py-2 px-3 text-left">{t.colSku}</th>
+                <th className="py-2 px-3 text-center">{t.colTotalStock}</th>
+                <th className="py-2 px-3 text-left">{t.colByLocation}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -107,7 +112,7 @@ export default async function StockOverviewPage() {
               {products.every((p) => p.variants.length === 0) && (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-sm text-gray-400">
-                    No product variants yet.
+                    {t.noProductVariantsYet}
                   </td>
                 </tr>
               )}

@@ -3,8 +3,11 @@
 import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { confirmPaymentProof, rejectPaymentProof } from "../actions";
+import { accountingDict } from "@/lib/i18n/dict/accounting";
+import type { Language } from "@/lib/i18n/language";
 
-export default function ProofReview({ proofId, status }: { proofId: string; status: string }) {
+export default function ProofReview({ proofId, status, lang }: { proofId: string; status: string; lang: Language }) {
+  const t = accountingDict[lang];
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -13,8 +16,10 @@ export default function ProofReview({ proofId, status }: { proofId: string; stat
     setError("");
     startTransition(async () => {
       const res = await action();
-      if (!res.ok) setError(res.error ?? "Something went wrong");
-      else router.refresh();
+      if (!res.ok) {
+        const code = res.error;
+        setError((code && code in t ? t[code as keyof typeof t] : code) ?? t.errSomethingWrong);
+      } else router.refresh();
     });
   }
 
@@ -25,16 +30,16 @@ export default function ProofReview({ proofId, status }: { proofId: string; stat
       {status === "PENDING" && (
         <div className="flex gap-2">
           <button disabled={pending} onClick={() => run(() => confirmPaymentProof(proofId))} className="btn-primary">
-            Confirm Payment
+            {t.confirmPayment}
           </button>
           <button disabled={pending} onClick={() => run(() => rejectPaymentProof(proofId))} className="btn-outline">
-            Reject
+            {t.reject}
           </button>
         </div>
       )}
 
-      {status === "CONFIRMED" && <p className="text-sm text-green-700">Payment confirmed.</p>}
-      {status === "REJECTED" && <p className="text-sm text-red-600">Payment rejected. Customer must re-upload proof.</p>}
+      {status === "CONFIRMED" && <p className="text-sm text-green-700">{t.paymentConfirmed}</p>}
+      {status === "REJECTED" && <p className="text-sm text-red-600">{t.paymentRejected}</p>}
     </div>
   );
 }

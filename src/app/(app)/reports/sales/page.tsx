@@ -1,6 +1,9 @@
 import { prisma as db } from "@/lib/db";
 import { formatDate, formatMoney, formatNumber } from "@/lib/format";
 import { getDateRange } from "@/lib/reports";
+import { requireSession } from "@/lib/auth";
+import { reportsDict } from "@/lib/i18n/dict/reports";
+import { commonDict } from "@/lib/i18n/dict/common";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +12,10 @@ export default async function SalesReportPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
+  const user = await requireSession();
+  const t = reportsDict[user.language];
+  const c = commonDict[user.language];
+
   const { from: fromParam, to: toParam } = await searchParams;
   const { fromStr, toStr, from, to } = getDateRange(fromParam, toParam);
 
@@ -25,6 +32,7 @@ export default async function SalesReportPage({
       paidAt: true,
       channel: true,
       items: {
+        where: { status: { not: "UNAVAILABLE" } },
         select: {
           qty: true,
           unitPrice: true,
@@ -99,33 +107,33 @@ export default async function SalesReportPage({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="section-title">Sales Report</h1>
+        <h1 className="section-title">{t.salesReportTitle}</h1>
         <form className="flex items-end gap-2" method="get">
           <div>
-            <label className="text-sm text-gray-600 block mb-1">From</label>
+            <label className="text-sm text-gray-600 block mb-1">{t.fromLabel}</label>
             <input type="date" name="from" defaultValue={fromStr} className="input" />
           </div>
           <div>
-            <label className="text-sm text-gray-600 block mb-1">To</label>
+            <label className="text-sm text-gray-600 block mb-1">{t.toLabel}</label>
             <input type="date" name="to" defaultValue={toStr} className="input" />
           </div>
           <button type="submit" className="btn-outline">
-            Filter
+            {c.filter}
           </button>
         </form>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="card">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Revenue</div>
+          <div className="text-xs text-gray-500 uppercase tracking-wide">{t.revenue}</div>
           <div className="text-lg font-semibold text-gray-800">{formatMoney(totalRevenue)}</div>
         </div>
         <div className="card">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Orders</div>
+          <div className="text-xs text-gray-500 uppercase tracking-wide">{t.orders}</div>
           <div className="text-lg font-semibold text-gray-800">{formatNumber(orderCount)}</div>
         </div>
         <div className="card">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Avg Order Value</div>
+          <div className="text-xs text-gray-500 uppercase tracking-wide">{t.avgOrderValue}</div>
           <div className="text-lg font-semibold text-gray-800">{formatMoney(avgOrderValue)}</div>
         </div>
       </div>
@@ -134,21 +142,21 @@ export default async function SalesReportPage({
         {/* Revenue by day */}
         <div className="card overflow-hidden p-0">
           <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Revenue by Day
+            {t.revenueByDay}
           </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide">
-                <th className="py-2 px-4 text-left">Date</th>
-                <th className="py-2 px-4 text-right">Orders</th>
-                <th className="py-2 px-4 text-right">Revenue</th>
+                <th className="py-2 px-4 text-left">{c.date}</th>
+                <th className="py-2 px-4 text-right">{t.orders}</th>
+                <th className="py-2 px-4 text-right">{t.revenue}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {dayRows.length === 0 && (
                 <tr>
                   <td className="py-6 px-4 text-center text-gray-400" colSpan={3}>
-                    No sales in this period.
+                    {t.noSalesInPeriod}
                   </td>
                 </tr>
               )}
@@ -166,29 +174,29 @@ export default async function SalesReportPage({
         {/* Top categories */}
         <div className="card overflow-hidden p-0">
           <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Revenue by Category
+            {t.revenueByCategory}
           </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide">
-                <th className="py-2 px-4 text-left">Category</th>
-                <th className="py-2 px-4 text-right">Qty</th>
-                <th className="py-2 px-4 text-right">Revenue</th>
+                <th className="py-2 px-4 text-left">{t.colCategory}</th>
+                <th className="py-2 px-4 text-right">{t.colQty}</th>
+                <th className="py-2 px-4 text-right">{t.revenue}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {topCategories.length === 0 && (
                 <tr>
                   <td className="py-6 px-4 text-center text-gray-400" colSpan={3}>
-                    No sales in this period.
+                    {t.noSalesInPeriod}
                   </td>
                 </tr>
               )}
-              {topCategories.map((c) => (
-                <tr key={c.name}>
-                  <td className="py-2 px-4 text-gray-700">{c.name}</td>
-                  <td className="py-2 px-4 text-right">{formatNumber(c.qty)}</td>
-                  <td className="py-2 px-4 text-right font-medium">{formatMoney(c.revenue)}</td>
+              {topCategories.map((cat) => (
+                <tr key={cat.name}>
+                  <td className="py-2 px-4 text-gray-700">{cat.name}</td>
+                  <td className="py-2 px-4 text-right">{formatNumber(cat.qty)}</td>
+                  <td className="py-2 px-4 text-right font-medium">{formatMoney(cat.revenue)}</td>
                 </tr>
               ))}
             </tbody>
@@ -199,22 +207,22 @@ export default async function SalesReportPage({
       {/* Top products */}
       <div className="card overflow-hidden p-0">
         <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-          Top Sellers
+          {t.topSellers}
         </div>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide">
-              <th className="py-2 px-4 text-left">Product</th>
-              <th className="py-2 px-4 text-left">SKU</th>
-              <th className="py-2 px-4 text-right">Qty Sold</th>
-              <th className="py-2 px-4 text-right">Revenue</th>
+              <th className="py-2 px-4 text-left">{t.colProduct}</th>
+              <th className="py-2 px-4 text-left">{t.colSku}</th>
+              <th className="py-2 px-4 text-right">{t.colQtySold}</th>
+              <th className="py-2 px-4 text-right">{t.revenue}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {topProducts.length === 0 && (
               <tr>
                 <td className="py-6 px-4 text-center text-gray-400" colSpan={4}>
-                  No sales in this period.
+                  {t.noSalesInPeriod}
                 </td>
               </tr>
             )}

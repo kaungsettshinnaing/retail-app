@@ -21,10 +21,10 @@ export async function confirmItemPicked(orderItemId: string): Promise<ActionResu
     where: { id: orderItemId },
     include: { order: { select: { id: true, status: true } } },
   });
-  if (!item) return { ok: false, error: "Order item not found" };
-  if (item.status !== "PENDING") return { ok: false, error: "This item has already been processed" };
+  if (!item) return { ok: false, error: "errOrderItemNotFound" };
+  if (item.status !== "PENDING") return { ok: false, error: "errItemAlreadyProcessed" };
   if (!["PENDING", "PICKING"].includes(item.order.status)) {
-    return { ok: false, error: "This order is not open for picking" };
+    return { ok: false, error: "errOrderNotOpenForPicking" };
   }
 
   await db.$transaction(async (tx) => {
@@ -65,12 +65,13 @@ export async function markItemUnavailable(orderItemId: string): Promise<ActionRe
 
   const item = await db.orderItem.findUnique({
     where: { id: orderItemId },
-    include: { order: { select: { id: true, status: true } } },
+    include: { order: { select: { id: true, status: true, paidAt: true, discount: true, total: true } } },
   });
-  if (!item) return { ok: false, error: "Order item not found" };
-  if (item.status !== "PENDING") return { ok: false, error: "This item has already been processed" };
+  if (!item) return { ok: false, error: "errOrderItemNotFound" };
+  if (item.status !== "PENDING") return { ok: false, error: "errItemAlreadyProcessed" };
 
   await db.$transaction(async (tx) => {
+    const effectiveStatus = item.order.status === "PENDING" ? "PICKING" : item.order.status;
     if (item.order.status === "PENDING") {
       await tx.order.update({ where: { id: item.order.id }, data: { status: "PICKING", pickedAt: new Date() } });
       await tx.orderLog.create({ data: { orderId: item.order.id, actorId: session.id, status: "PICKING" } });
@@ -95,6 +96,41 @@ export async function markItemUnavailable(orderItemId: string): Promise<ActionRe
     }
 
     await tx.orderItem.update({ where: { id: item.id }, data: { status: "UNAVAILABLE" } });
+
+    // The customer must not be charged for an item that was never delivered
+    // — recompute subtotal/total from the remaining (non-UNAVAILABLE) items.
+    // Discount is kept as-is (it was a flat amount decided at order time, not
+    // itemized), just re-capped so it can never exceed the new subtotal.
+    const remaining = await tx.orderItem.findMany({
+      where: { orderId: item.order.id, status: { not: "UNAVAILABLE" } },
+      select: { unitPrice: true, qty: true },
+    });
+    const newSubtotal = remaining.reduce((sum, i) => sum + (i.unitPrice ?? 0) * i.qty, 0);
+    const discount = Math.min(item.order.discount, newSubtotal);
+    const newTotal = Math.max(0, newSubtotal - discount);
+
+    await tx.order.update({
+      where: { id: item.order.id },
+      data: { subtotal: newSubtotal, discount, total: newTotal },
+    });
+
+    // If the order was already paid before this item turned out to be
+    // unavailable, the customer was charged the old (higher) total — there is
+    // no automated refund flow in this app, so surface it instead of quietly
+    // absorbing the difference.
+    if (item.order.paidAt) {
+      const refundDue = item.order.total - newTotal;
+      if (refundDue > 0) {
+        await tx.orderLog.create({
+          data: {
+            orderId: item.order.id,
+            actorId: session.id,
+            status: effectiveStatus,
+            note: `Item marked unavailable after payment — customer already paid ${item.order.total}, new total is ${newTotal}. Refund ${refundDue} manually.`,
+          },
+        });
+      }
+    }
   });
 
   revalidatePath(`/warehouse/orders/${item.order.id}`);
@@ -109,9 +145,9 @@ export async function cancelOrder(orderId: string): Promise<ActionResult> {
     where: { id: orderId },
     include: { items: true },
   });
-  if (!order) return { ok: false, error: "Order not found" };
+  if (!order) return { ok: false, error: "errOrderNotFound" };
   if (!["PENDING", "PICKING", "PACKED", "READY"].includes(order.status)) {
-    return { ok: false, error: "This order can no longer be cancelled" };
+    return { ok: false, error: "errOrderCannotBeCancelled" };
   }
 
   await db.$transaction(async (tx) => {
@@ -153,10 +189,10 @@ export async function markOrderPacked(orderId: string): Promise<ActionResult> {
   const session = await guard();
 
   const order = await db.order.findUnique({ where: { id: orderId }, include: { items: true } });
-  if (!order) return { ok: false, error: "Order not found" };
-  if (order.status !== "PICKING") return { ok: false, error: "Order must be fully picked first" };
+  if (!order) return { ok: false, error: "errOrderNotFound" };
+  if (order.status !== "PICKING") return { ok: false, error: "errOrderMustBeFullyPicked" };
   if (order.items.some((i) => i.status === "PENDING")) {
-    return { ok: false, error: "Every item must be picked or marked unavailable first" };
+    return { ok: false, error: "errEveryItemMustBeResolved" };
   }
 
   await db.$transaction([
@@ -173,8 +209,8 @@ export async function markOrderReady(orderId: string): Promise<ActionResult> {
   const session = await fulfilmentGuard();
 
   const order = await db.order.findUnique({ where: { id: orderId }, select: { status: true } });
-  if (!order) return { ok: false, error: "Order not found" };
-  if (order.status !== "PACKED") return { ok: false, error: "Order must be packed first" };
+  if (!order) return { ok: false, error: "errOrderNotFound" };
+  if (order.status !== "PACKED") return { ok: false, error: "errOrderMustBePacked" };
 
   await db.$transaction([
     db.order.update({ where: { id: orderId }, data: { status: "READY", readyAt: new Date() } }),
@@ -193,8 +229,8 @@ export async function completeOrder(
   const session = await fulfilmentGuard();
 
   const order = await db.order.findUnique({ where: { id: orderId }, select: { status: true } });
-  if (!order) return { ok: false, error: "Order not found" };
-  if (order.status !== "READY") return { ok: false, error: "Order must be ready first" };
+  if (!order) return { ok: false, error: "errOrderNotFound" };
+  if (order.status !== "READY") return { ok: false, error: "errOrderMustBeReady" };
 
   const now = new Date();
   await db.$transaction([

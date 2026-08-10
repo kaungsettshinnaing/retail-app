@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { prisma as db } from "@/lib/db";
+import { requireSession } from "@/lib/auth";
+import { hrDict } from "@/lib/i18n/dict/hr";
 
 export const dynamic = "force-dynamic";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 export default async function PayrollListPage() {
+  const user = await requireSession();
+  const t = hrDict[user.language];
   const now = new Date();
 
   const payrolls = await db.payroll.findMany({
@@ -24,7 +28,7 @@ export default async function PayrollListPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="section-title">Payroll</h1>
+      <h1 className="section-title">{t.payrollTitle}</h1>
 
       <div className="flex flex-wrap gap-2">
         {recentMonths.map(({ month, year }) => {
@@ -44,7 +48,7 @@ export default async function PayrollListPage() {
             >
               {MONTHS[month - 1]} {year}
               {existing?.status === "LOCKED" && " ✓"}
-              {existing?.status === "DRAFT" && " (draft)"}
+              {existing?.status === "DRAFT" && t.draftSuffix}
             </Link>
           );
         })}
@@ -55,10 +59,10 @@ export default async function PayrollListPage() {
           <table className="w-full text-sm">
             <thead className="border-b border-gray-100 bg-gray-50 text-xs uppercase text-gray-500">
               <tr>
-                <th className="px-4 py-2 text-left">Period</th>
-                <th className="px-4 py-2 text-left">Status</th>
-                <th className="px-4 py-2 text-left">Employees</th>
-                <th className="px-4 py-2 text-left">Locked By</th>
+                <th className="px-4 py-2 text-left">{t.colPeriod}</th>
+                <th className="px-4 py-2 text-left">{t.colStatus}</th>
+                <th className="px-4 py-2 text-left">{t.colEmployeesCount}</th>
+                <th className="px-4 py-2 text-left">{t.colLockedBy}</th>
                 <th className="px-4 py-2" />
               </tr>
             </thead>
@@ -70,14 +74,14 @@ export default async function PayrollListPage() {
                     <td className="px-4 py-2 font-medium">{MONTHS[p.month - 1]} {p.year}</td>
                     <td className="px-4 py-2">
                       <span className={`badge ${p.status === "LOCKED" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                        {p.status === "LOCKED" ? "Locked" : "Draft"}
+                        {p.status === "LOCKED" ? t.lockedBadge : t.draftBadge}
                       </span>
                     </td>
                     <td className="px-4 py-2">{p._count.items}</td>
                     <td className="px-4 py-2 text-gray-500">{p.lockedBy?.name ?? "—"}</td>
                     <td className="px-4 py-2 text-right">
                       <Link href={`/hr/payroll/${slug}`} className="text-sm text-brand hover:underline">
-                        Open →
+                        {t.openArrow}
                       </Link>
                     </td>
                   </tr>
@@ -88,7 +92,7 @@ export default async function PayrollListPage() {
         </div>
       ) : (
         <div className="card text-center text-gray-400 py-10">
-          No payrolls generated yet. Pick a month above to get started.
+          {t.noPayrollsYet}
         </div>
       )}
     </div>

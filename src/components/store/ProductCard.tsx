@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { formatMoney } from "@/lib/format";
+import { storeDict } from "@/lib/i18n/dict/store";
+import type { Language } from "@/lib/i18n/language";
 
-type Variant = { id: string; price: number | null; stock: number };
+type Variant = { id: string; displayPrice: number | null; stock: number };
 type Product = {
   id: string;
   name: string;
@@ -10,8 +12,9 @@ type Product = {
   variants: Variant[];
 };
 
-export default function ProductCard({ product }: { product: Product }) {
-  const prices = product.variants.map((v) => v.price).filter((p): p is number => p != null);
+export default function ProductCard({ product, lang }: { product: Product; lang: Language }) {
+  const t = storeDict[lang];
+  const prices = product.variants.map((v) => v.displayPrice).filter((p): p is number => p != null);
   const minPrice = prices.length ? Math.min(...prices) : null;
   const totalStock = product.variants.reduce((sum, v) => sum + v.stock, 0);
 
@@ -22,20 +25,20 @@ export default function ProductCard({ product }: { product: Product }) {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
         ) : (
-          <span className="text-gray-300 text-xs">No image</span>
+          <span className="text-gray-300 text-xs">{t.noImage}</span>
         )}
       </div>
       <p className="text-sm font-medium text-gray-800 line-clamp-2">{product.name}</p>
       <div className="mt-1 flex items-center justify-between">
         <span className="text-sm font-semibold text-brand">
-          {product.type === "CONTACT_PRICE" ? "Contact for Price" : minPrice != null ? formatMoney(minPrice) : "—"}
+          {product.type === "CONTACT_PRICE" ? t.contactForPrice : minPrice != null ? formatMoney(minPrice) : "—"}
         </span>
         {product.type === "REGULAR" && (
           <span className={`badge ${totalStock > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
-            {totalStock > 0 ? "In Stock" : "Out of Stock"}
+            {totalStock > 0 ? t.inStock : t.outOfStock}
           </span>
         )}
-        {product.type === "PASS_THROUGH" && <span className="badge bg-blue-100 text-blue-700">On Demand</span>}
+        {product.type === "PASS_THROUGH" && <span className="badge bg-blue-100 text-blue-700">{t.onDemand}</span>}
       </div>
     </Link>
   );

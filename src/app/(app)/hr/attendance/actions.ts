@@ -18,7 +18,7 @@ export async function markAttendance(fd: FormData): Promise<ActionResult> {
   const dayType = ((fd.get("dayType") as string | null) || "FULL") as DayType;
   const note = ((fd.get("note") as string | null) ?? "").trim();
 
-  if (!employeeId || !rawDate) return { ok: false, error: "Employee and date are required" };
+  if (!employeeId || !rawDate) return { ok: false, error: "attendanceRequiredError" };
   const [y, m, d] = rawDate.split("-").map(Number);
   const date = new Date(Date.UTC(y, m - 1, d));
 
@@ -40,7 +40,7 @@ export async function markAttendance(fd: FormData): Promise<ActionResult> {
 export async function approveAttendance(id: string): Promise<ActionResult> {
   const session = await guard();
   const att = await db.attendance.findUnique({ where: { id } });
-  if (!att) return { ok: false, error: "Attendance record not found" };
+  if (!att) return { ok: false, error: "attendanceRecordNotFound" };
 
   await db.attendance.update({
     where: { id },

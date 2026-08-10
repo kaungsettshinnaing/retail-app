@@ -56,8 +56,8 @@ const ItemSchema = z.object({
 
 async function assertDraft(invoiceId: string) {
   const invoice = await db.supplierInvoice.findUnique({ where: { id: invoiceId }, select: { status: true } });
-  if (!invoice) return "Invoice not found";
-  if (invoice.status !== "DRAFT") return "Invoice can only be edited while in Draft status";
+  if (!invoice) return "errInvoiceNotFound";
+  if (invoice.status !== "DRAFT") return "errInvoiceEditableOnlyDraft";
   return null;
 }
 
@@ -78,13 +78,13 @@ export async function addInvoiceItem(invoiceId: string, formData: FormData): Pro
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid data" };
   if (!parsed.data.variantId && !parsed.data.description) {
-    return { ok: false, error: "Select a product or enter a description" };
+    return { ok: false, error: "errSelectProductOrDescription" };
   }
 
   let productId: string | undefined;
   if (parsed.data.variantId) {
     const variant = await db.productVariant.findUnique({ where: { id: parsed.data.variantId }, select: { productId: true } });
-    if (!variant) return { ok: false, error: "Product variant not found" };
+    if (!variant) return { ok: false, error: "errProductVariantNotFound" };
     productId = variant.productId;
   }
 
@@ -107,7 +107,7 @@ export async function updateInvoiceItem(itemId: string, formData: FormData): Pro
   await guard();
 
   const item = await db.supplierInvoiceItem.findUnique({ where: { id: itemId }, select: { invoiceId: true } });
-  if (!item) return { ok: false, error: "Line item not found" };
+  if (!item) return { ok: false, error: "errLineItemNotFound" };
 
   const err = await assertDraft(item.invoiceId);
   if (err) return { ok: false, error: err };
@@ -131,7 +131,7 @@ export async function deleteInvoiceItem(itemId: string): Promise<ActionResult> {
   await guard();
 
   const item = await db.supplierInvoiceItem.findUnique({ where: { id: itemId }, select: { invoiceId: true } });
-  if (!item) return { ok: false, error: "Line item not found" };
+  if (!item) return { ok: false, error: "errLineItemNotFound" };
 
   const err = await assertDraft(item.invoiceId);
   if (err) return { ok: false, error: err };
@@ -149,9 +149,9 @@ export async function submitInvoice(invoiceId: string): Promise<ActionResult> {
     where: { id: invoiceId },
     include: { items: true },
   });
-  if (!invoice) return { ok: false, error: "Invoice not found" };
-  if (invoice.status !== "DRAFT") return { ok: false, error: "Invoice has already been submitted" };
-  if (invoice.items.length === 0) return { ok: false, error: "Add at least one line item before submitting" };
+  if (!invoice) return { ok: false, error: "errInvoiceNotFound" };
+  if (invoice.status !== "DRAFT") return { ok: false, error: "errInvoiceAlreadySubmitted" };
+  if (invoice.items.length === 0) return { ok: false, error: "errAddAtLeastOneLineItem" };
 
   const totalAmount = invoice.items.reduce(
     (sum, it) => sum + (it.unitCost ?? 0) * it.invoicedQty,
@@ -183,8 +183,8 @@ export async function deleteInvoice(invoiceId: string): Promise<ActionResult> {
   await guard();
 
   const invoice = await db.supplierInvoice.findUnique({ where: { id: invoiceId }, select: { status: true } });
-  if (!invoice) return { ok: false, error: "Invoice not found" };
-  if (invoice.status !== "DRAFT") return { ok: false, error: "Only draft invoices can be deleted" };
+  if (!invoice) return { ok: false, error: "errInvoiceNotFound" };
+  if (invoice.status !== "DRAFT") return { ok: false, error: "errOnlyDraftCanBeDeleted" };
 
   await db.supplierInvoice.delete({ where: { id: invoiceId } });
 

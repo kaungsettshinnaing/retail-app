@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma as db } from "@/lib/db";
+import { requireSession } from "@/lib/auth";
+import { hrDict } from "@/lib/i18n/dict/hr";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +13,8 @@ export default async function PayslipPage({
   params: Promise<{ yearMonth: string; employeeId: string }>;
 }) {
   const { yearMonth, employeeId } = await params;
+  const user = await requireSession();
+  const t = hrDict[user.language];
   const [yearStr, monthStr] = yearMonth.split("-");
   const year = parseInt(yearStr);
   const month = parseInt(monthStr);
@@ -44,27 +48,27 @@ export default async function PayslipPage({
     <div className="mx-auto max-w-lg">
       <div className="card">
         <div className="mb-6 text-center">
-          <p className="text-sm text-gray-500">PAYSLIP</p>
+          <p className="text-sm text-gray-500">{t.payslipLabel}</p>
           <p className="text-sm font-medium">{MONTHS[month - 1]} {year}</p>
         </div>
 
         <div className="mb-6 border-b border-gray-100 pb-4">
           <div className="grid grid-cols-2 gap-1 text-sm">
-            <span className="text-gray-500">Employee</span>
+            <span className="text-gray-500">{t.colEmployee}</span>
             <span className="font-medium">{item.employee.user.name}</span>
             {item.employee.employeeNo && (
               <>
-                <span className="text-gray-500">Employee No.</span>
+                <span className="text-gray-500">{t.employeeNoLabel}</span>
                 <span>{item.employee.employeeNo}</span>
               </>
             )}
-            <span className="text-gray-500">Working Days</span>
+            <span className="text-gray-500">{t.workingDaysLabel}</span>
             <span>{item.workingDays}</span>
-            <span className="text-gray-500">Days Absent</span>
+            <span className="text-gray-500">{t.daysAbsentLabel}</span>
             <span>{item.absentDays}</span>
             {item.otDays > 0 && (
               <>
-                <span className="text-gray-500">OT Days</span>
+                <span className="text-gray-500">{t.otDaysLabel}</span>
                 <span>{item.otDays}</span>
               </>
             )}
@@ -72,27 +76,27 @@ export default async function PayslipPage({
         </div>
 
         <div className="mb-4">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Earnings</h2>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">{t.earningsTitle}</h2>
           <div className="space-y-1 text-sm">
             <div className="flex justify-between">
-              <span>Basic Salary</span>
+              <span>{t.basicSalaryLabel}</span>
               <span>{item.basicSalary.toLocaleString()} MMK</span>
             </div>
             {item.absenceDeduction > 0 && (
               <div className="flex justify-between text-red-500">
-                <span>Absence Deduction ({netAbsent} day{netAbsent !== 1 ? "s" : ""} × {item.dailyRate.toLocaleString()})</span>
+                <span>{t.absenceDeductionLabel} ({netAbsent} {netAbsent !== 1 ? t.dayPlural : t.daySingular} × {item.dailyRate.toLocaleString()})</span>
                 <span>−{item.absenceDeduction.toLocaleString()} MMK</span>
               </div>
             )}
             {item.otPremium > 0 && (
               <div className="flex justify-between text-purple-600">
-                <span>OT Premium ({Math.max(0, item.otDays - item.absentDays)} day × 0.5×)</span>
+                <span>{t.otPremiumLabel} ({Math.max(0, item.otDays - item.absentDays)} {t.daySingular} × 0.5×)</span>
                 <span>+{item.otPremium.toLocaleString()} MMK</span>
               </div>
             )}
             {earnedBonus && (
               <div className="flex justify-between text-green-600">
-                <span>Attendance Bonus (perfect attendance)</span>
+                <span>{t.attendanceBonusPerfectLabel}</span>
                 <span>+{item.attendanceBonusAmt.toLocaleString()} MMK</span>
               </div>
             )}
@@ -107,17 +111,17 @@ export default async function PayslipPage({
 
         {(advanceInstalments.length > 0 || fines.length > 0) && (
           <div className="mb-4 border-t border-gray-100 pt-4">
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Deductions</h2>
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">{t.deductionsTitle}</h2>
             <div className="space-y-1 text-sm">
               {advanceInstalments.map((inst) => (
                 <div key={inst.id} className="flex justify-between text-red-500">
-                  <span>Advance repayment{inst.advance.note ? ` (${inst.advance.note})` : ""}</span>
+                  <span>{t.advanceRepaymentLabel}{inst.advance.note ? ` (${inst.advance.note})` : ""}</span>
                   <span>−{inst.amount.toLocaleString()} MMK</span>
                 </div>
               ))}
               {fines.map((f) => (
                 <div key={f.id} className="flex justify-between text-red-500">
-                  <span>Fine: {f.reason}</span>
+                  <span>{t.fineLabelPrefix} {f.reason}</span>
                   <span>−{f.amount.toLocaleString()} MMK</span>
                 </div>
               ))}
@@ -127,13 +131,13 @@ export default async function PayslipPage({
 
         <div className="border-t border-gray-100 pt-4">
           <div className="flex items-center justify-between">
-            <span className="font-bold">Net Pay</span>
+            <span className="font-bold">{t.netPayLabel}</span>
             <span className="text-lg font-bold text-brand">{item.netPay.toLocaleString()} MMK</span>
           </div>
         </div>
 
         <div className="mt-6 text-center text-xs text-gray-400">
-          {payroll.status === "LOCKED" ? "Approved payroll" : "Draft — not yet approved"}
+          {payroll.status === "LOCKED" ? t.approvedPayroll : t.draftNotApproved}
         </div>
       </div>
     </div>

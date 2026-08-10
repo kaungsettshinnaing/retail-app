@@ -42,6 +42,17 @@ export async function getOrCreateExpenseAccount(tx: Tx, categoryId: string): Pro
   const existing = await tx.account.findUnique({ where: { linkedExpenseCategoryId: categoryId } });
   if (existing) return existing.id;
 
+  // Serialize concurrent first-time account creation with a transaction-
+  // scoped advisory lock — two categories auto-provisioned in the same
+  // instant would otherwise both read the same `count` and compute the same
+  // "5100 + count*10" code, colliding on Account.code's unique constraint.
+  // The lock auto-releases at commit/rollback; it blocks rather than throws,
+  // so no retry loop is needed.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('expense-account-code')::bigint)`;
+
+  const existingAfterLock = await tx.account.findUnique({ where: { linkedExpenseCategoryId: categoryId } });
+  if (existingAfterLock) return existingAfterLock.id;
+
   const category = await tx.expenseCategory.findUniqueOrThrow({ where: { id: categoryId } });
   const count = await tx.account.count({ where: { code: { startsWith: "51" } } });
   const code = String(5100 + count * 10);

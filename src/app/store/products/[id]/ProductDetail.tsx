@@ -4,12 +4,14 @@ import { useState } from "react";
 import { formatMoney } from "@/lib/format";
 import { useCart } from "@/components/store/CartContext";
 import { submitInquiry } from "./actions";
+import { storeDict } from "@/lib/i18n/dict/store";
+import type { Language } from "@/lib/i18n/language";
 
 type Variant = {
   id: string;
   sku: string;
   optionValues: unknown;
-  price: number | null;
+  displayPrice: number | null;
   comparePrice: number | null;
   imageUrl: string | null;
   stock: number;
@@ -30,7 +32,8 @@ function optionLabel(optionValues: unknown): string {
   return opts && Object.keys(opts).length ? Object.values(opts).join(" / ") : "";
 }
 
-export default function ProductDetail({ product }: { product: Product }) {
+export default function ProductDetail({ product, lang }: { product: Product; lang: Language }) {
+  const t = storeDict[lang];
   const [selectedId, setSelectedId] = useState(product.variants[0]?.id ?? "");
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
@@ -49,7 +52,7 @@ export default function ProductDetail({ product }: { product: Product }) {
       variantId: selected.id,
       sku: selected.sku,
       optionLabel: optionLabel(selected.optionValues),
-      unitPrice: selected.price ?? 0,
+      unitPrice: selected.displayPrice ?? 0,
       qty,
       maxStock: product.type === "REGULAR" ? selected.stock : null,
       imageUrl: selected.imageUrl ?? product.imageUrl,
@@ -65,7 +68,7 @@ export default function ProductDetail({ product }: { product: Product }) {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
         ) : (
-          <span className="text-gray-300 text-sm">No image</span>
+          <span className="text-gray-300 text-sm">{t.noImage}</span>
         )}
       </div>
 
@@ -75,12 +78,12 @@ export default function ProductDetail({ product }: { product: Product }) {
         {product.description && <p className="text-sm text-gray-500">{product.description}</p>}
 
         {product.type === "CONTACT_PRICE" ? (
-          <InquirySection productId={product.id} />
+          <InquirySection productId={product.id} lang={lang} />
         ) : (
           <>
             <p className="text-xl font-semibold text-brand">
-              {selected?.price != null ? formatMoney(selected.price) : "—"}
-              {selected?.comparePrice != null && selected.comparePrice > (selected.price ?? 0) && (
+              {selected?.displayPrice != null ? formatMoney(selected.displayPrice) : "—"}
+              {selected?.comparePrice != null && selected.comparePrice > (selected.displayPrice ?? 0) && (
                 <span className="ml-2 text-sm text-gray-400 line-through">{formatMoney(selected.comparePrice)}</span>
               )}
             </p>
@@ -101,10 +104,12 @@ export default function ProductDetail({ product }: { product: Product }) {
 
             {product.type === "REGULAR" && (
               <p className="text-sm text-gray-500">
-                {selected && selected.stock > 0 ? `${selected.stock} ${product.unit} in stock` : "Out of stock"}
+                {selected && selected.stock > 0
+                  ? t.inStockCount.replace("{count}", String(selected.stock)).replace("{unit}", product.unit)
+                  : t.outOfStock}
               </p>
             )}
-            {product.type === "PASS_THROUGH" && <p className="text-sm text-blue-600">Available to order — supplied on demand</p>}
+            {product.type === "PASS_THROUGH" && <p className="text-sm text-blue-600">{t.passThroughAvailable}</p>}
 
             <div className="flex items-center gap-2">
               <input
@@ -119,7 +124,7 @@ export default function ProductDetail({ product }: { product: Product }) {
                 disabled={product.type === "REGULAR" && (!selected || selected.stock <= 0)}
                 className="btn-primary flex-1 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {added ? "Added!" : "Add to Cart"}
+                {added ? t.addedToCart : t.addToCart}
               </button>
             </div>
           </>
@@ -129,7 +134,8 @@ export default function ProductDetail({ product }: { product: Product }) {
   );
 }
 
-function InquirySection({ productId }: { productId: string }) {
+function InquirySection({ productId, lang }: { productId: string; lang: Language }) {
+  const t = storeDict[lang];
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -143,28 +149,28 @@ function InquirySection({ productId }: { productId: string }) {
     setError("");
     const res = await submitInquiry({ productId, contactName: name, contactPhone: phone, contactEmail: email, message });
     setSubmitting(false);
-    if (!res.ok) { setError(res.error); return; }
+    if (!res.ok) { setError(res.error in t ? (t[res.error as keyof typeof t] as string) : res.error); return; }
     setDone(true);
   }
 
   if (done) {
     return (
       <div className="rounded bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-700">
-        Thanks! We&apos;ll contact you with a price shortly.
+        {t.thanksInquiry}
       </div>
     );
   }
 
   return (
     <div className="card space-y-2">
-      <p className="text-sm font-medium text-gray-700">Contact for Price</p>
+      <p className="text-sm font-medium text-gray-700">{t.contactForPrice}</p>
       {error && <div className="rounded bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{error}</div>}
-      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="input w-full text-sm" />
-      <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone number" className="input w-full text-sm" />
-      <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email (optional)" className="input w-full text-sm" />
-      <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Message (optional)" rows={3} className="input w-full text-sm" />
+      <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t.yourNamePlaceholder} className="input w-full text-sm" />
+      <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={t.phoneNumberPlaceholder} className="input w-full text-sm" />
+      <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t.emailOptionalPlaceholder} className="input w-full text-sm" />
+      <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder={t.messageOptionalPlaceholder} rows={3} className="input w-full text-sm" />
       <button onClick={handleSubmit} disabled={submitting || !name || !phone} className="btn-primary w-full">
-        {submitting ? "Sending…" : "Request Price"}
+        {submitting ? t.sendingInquiry : t.requestPrice}
       </button>
     </div>
   );

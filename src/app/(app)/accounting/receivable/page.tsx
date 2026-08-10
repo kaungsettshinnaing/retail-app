@@ -1,10 +1,17 @@
 import Link from "next/link";
 import { prisma as db } from "@/lib/db";
 import { formatDateTime, formatMoney } from "@/lib/format";
+import { requireSession } from "@/lib/auth";
+import { accountingDict } from "@/lib/i18n/dict/accounting";
+import { commonDict } from "@/lib/i18n/dict/common";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReceivablePage() {
+  const user = await requireSession();
+  const t = accountingDict[user.language];
+  const c = commonDict[user.language];
+
   const proofs = await db.orderPaymentProof.findMany({
     where: { status: "PENDING" },
     orderBy: { uploadedAt: "asc" },
@@ -13,16 +20,16 @@ export default async function ReceivablePage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="section-title">Accounts Receivable</h1>
-      <p className="text-sm text-gray-500">Online orders awaiting bank transfer confirmation.</p>
+      <h1 className="section-title">{t.receivableTitle}</h1>
+      <p className="text-sm text-gray-500">{t.receivableSubtitle}</p>
       <div className="card overflow-hidden p-0">
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-              <th className="py-2 px-3 text-left">Order</th>
-              <th className="py-2 px-3 text-left">Customer</th>
-              <th className="py-2 px-3 text-left">Uploaded</th>
-              <th className="py-2 px-3 text-right">Total</th>
+              <th className="py-2 px-3 text-left">{t.colOrder}</th>
+              <th className="py-2 px-3 text-left">{t.colCustomer}</th>
+              <th className="py-2 px-3 text-left">{t.colUploaded}</th>
+              <th className="py-2 px-3 text-right">{c.total}</th>
               <th className="py-2 px-3" />
             </tr>
           </thead>
@@ -30,7 +37,7 @@ export default async function ReceivablePage() {
             {proofs.length === 0 && (
               <tr>
                 <td colSpan={5} className="py-8 text-center text-sm text-gray-400">
-                  No pending payment proofs.
+                  {t.noPendingProofs}
                 </td>
               </tr>
             )}
@@ -47,7 +54,7 @@ export default async function ReceivablePage() {
                 <td className="py-2 px-3 text-sm text-right">{formatMoney(p.order.total)}</td>
                 <td className="py-2 px-3 text-right">
                   <Link href={`/accounting/receivable/${p.order.id}`} className="text-sm text-brand hover:underline">
-                    Review
+                    {t.review}
                   </Link>
                 </td>
               </tr>

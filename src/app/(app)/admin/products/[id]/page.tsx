@@ -3,6 +3,8 @@ import Link from "next/link";
 import { prisma as db } from "@/lib/db";
 import { updateProduct } from "../actions";
 import ProductForm from "../ProductForm";
+import { requireSession } from "@/lib/auth";
+import { adminDict } from "@/lib/i18n/dict/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,8 @@ export default async function EditProductPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const user = await requireSession();
+  const t = adminDict[user.language];
 
   const [product, categories] = await Promise.all([
     db.product.findUnique({
@@ -33,7 +37,7 @@ export default async function EditProductPage({
       <div className="flex items-center justify-between">
         <h1 className="section-title">{product.name}</h1>
         <Link href={`/admin/products/${id}/variants`} className="btn-accent text-sm">
-          Manage Variants →
+          {t.productManageVariants}
         </Link>
       </div>
       <ProductForm
@@ -51,7 +55,8 @@ export default async function EditProductPage({
           imageUrl: product.imageUrl,
           options: product.options,
         }}
-        submitLabel="Save Changes"
+        submitLabel={t.saveChanges}
+        lang={user.language}
       />
     </div>
   );

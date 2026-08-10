@@ -33,7 +33,7 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid data" };
 
   const existing = await db.user.findUnique({ where: { username: parsed.data.username } });
-  if (existing) return { ok: false, error: "Username already taken" };
+  if (existing) return { ok: false, error: "errUsernameTaken" };
 
   const user = await db.user.create({
     data: {
@@ -75,7 +75,7 @@ export async function updateUser(id: string, formData: FormData): Promise<Action
 export async function resetUserPassword(id: string, formData: FormData): Promise<ActionResult> {
   await requireAnyRole(["ADMIN"]);
   const password = String(formData.get("password") || "");
-  if (password.length < 6) return { ok: false, error: "Password must be at least 6 characters" };
+  if (password.length < 6) return { ok: false, error: "errUserPasswordTooShort" };
 
   await db.user.update({ where: { id }, data: { passwordHash: hashPassword(password) } });
   return { ok: true };
@@ -84,11 +84,11 @@ export async function resetUserPassword(id: string, formData: FormData): Promise
 export async function toggleUser(id: string, isActive: boolean): Promise<ActionResult> {
   const session = await requireAnyRole(["ADMIN"]);
   if (session.id === id && !isActive) {
-    return { ok: false, error: "You cannot deactivate your own account" };
+    return { ok: false, error: "errCannotDeactivateSelf" };
   }
   const target = await db.user.findUnique({ where: { id }, select: { isSystemAccount: true } });
   if (target?.isSystemAccount && !isActive) {
-    return { ok: false, error: "Cannot deactivate the system admin account" };
+    return { ok: false, error: "errCannotDeactivateSystem" };
   }
   await db.user.update({ where: { id }, data: { isActive } });
   revalidatePath("/admin/users");

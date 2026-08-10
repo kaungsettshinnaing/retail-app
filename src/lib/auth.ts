@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import type { Role } from "./rbac";
+import { requireSecret } from "./env-secret";
+import { DEFAULT_LANGUAGE, isLanguage, type Language } from "./i18n/language";
 
 // ── Staff session ────────────────────────────────────────────────────────────
 
@@ -10,9 +12,7 @@ export const SESSION_COOKIE = "rs_session";
 const SESSION_HOURS = 12;
 
 function getSecret(): Uint8Array {
-  return new TextEncoder().encode(
-    process.env.AUTH_SECRET || "dev-only-secret-change-me",
-  );
+  return new TextEncoder().encode(requireSecret("AUTH_SECRET", "dev-only-secret-change-me"));
 }
 
 export interface SessionUser {
@@ -20,6 +20,7 @@ export interface SessionUser {
   username: string;
   name: string;
   roles: Role[];
+  language: Language;
 }
 
 export function hashPassword(pw: string): string {
@@ -35,7 +36,12 @@ export function verifyPassword(pw: string, hash: string): boolean {
 }
 
 export async function createSessionToken(user: SessionUser): Promise<string> {
-  return new SignJWT({ username: user.username, name: user.name, roles: user.roles })
+  return new SignJWT({
+    username: user.username,
+    name: user.name,
+    roles: user.roles,
+    language: user.language,
+  })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(user.id)
     .setIssuedAt()
@@ -52,6 +58,7 @@ export async function verifySessionToken(token: string): Promise<SessionUser | n
       username: String(payload.username ?? ""),
       name: String(payload.name ?? ""),
       roles: (payload.roles as Role[]) ?? [],
+      language: isLanguage(payload.language) ? payload.language : DEFAULT_LANGUAGE,
     };
   } catch {
     return null;
@@ -83,19 +90,19 @@ export const SESSION_MAX_AGE = SESSION_HOURS * 60 * 60;
 export const CUSTOMER_COOKIE = "rs_customer";
 
 function getCustomerSecret(): Uint8Array {
-  return new TextEncoder().encode(
-    process.env.CUSTOMER_AUTH_SECRET || "dev-customer-secret-change-me",
-  );
+  return new TextEncoder().encode(requireSecret("CUSTOMER_AUTH_SECRET", "dev-customer-secret-change-me"));
 }
 
 export interface CustomerSession {
   id: string;
   name: string | null;
   email: string | null;
+  isB2B: boolean;
+  language: Language;
 }
 
 export async function createCustomerToken(c: CustomerSession): Promise<string> {
-  return new SignJWT({ name: c.name, email: c.email })
+  return new SignJWT({ name: c.name, email: c.email, isB2B: c.isB2B, language: c.language })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(c.id)
     .setIssuedAt()
@@ -111,6 +118,8 @@ export async function verifyCustomerToken(token: string): Promise<CustomerSessio
       id: payload.sub,
       name: payload.name ? String(payload.name) : null,
       email: payload.email ? String(payload.email) : null,
+      isB2B: Boolean(payload.isB2B),
+      language: isLanguage(payload.language) ? payload.language : DEFAULT_LANGUAGE,
     };
   } catch {
     return null;

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma as db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import PayrollActions from "./PayrollActions";
+import { requireSession } from "@/lib/auth";
+import { hrDict } from "@/lib/i18n/dict/hr";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +15,8 @@ export default async function PayrollDetailPage({
   params: Promise<{ yearMonth: string }>;
 }) {
   const { yearMonth } = await params;
+  const user = await requireSession();
+  const t = hrDict[user.language];
   const [yearStr, monthStr] = yearMonth.split("-");
   const year = parseInt(yearStr);
   const month = parseInt(monthStr);
@@ -34,22 +38,22 @@ export default async function PayrollDetailPage({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="section-title">Payroll — {MONTHS[month - 1]} {year}</h1>
+        <h1 className="section-title">{t.payrollDetailPrefix} {MONTHS[month - 1]} {year}</h1>
         {isLocked ? (
-          <span className="badge bg-green-100 text-green-700">LOCKED</span>
+          <span className="badge bg-green-100 text-green-700">{t.lockedStatusBadge}</span>
         ) : (
-          <span className="badge bg-gray-100 text-gray-500">DRAFT</span>
+          <span className="badge bg-gray-100 text-gray-500">{t.draftStatusBadge}</span>
         )}
-        <Link href="/hr/payroll" className="ml-auto text-sm text-brand hover:underline">All Payrolls</Link>
+        <Link href="/hr/payroll" className="ml-auto text-sm text-brand hover:underline">{t.allPayrollsLink}</Link>
       </div>
 
       {!isLocked && (
-        <PayrollActions yearMonth={yearMonth} hasPayroll={!!payroll} hasItems={(payroll?.items.length ?? 0) > 0} />
+        <PayrollActions yearMonth={yearMonth} hasPayroll={!!payroll} hasItems={(payroll?.items.length ?? 0) > 0} lang={user.language} />
       )}
 
       {isLocked && payroll?.lockedBy && (
         <p className="text-sm text-gray-400">
-          Locked by {payroll.lockedBy.name} on {formatDate(payroll.lockedAt)}
+          {t.lockedByPrefix} {payroll.lockedBy.name} {t.lockedByOn} {formatDate(payroll.lockedAt)}
         </p>
       )}
 
@@ -58,17 +62,17 @@ export default async function PayrollDetailPage({
           <table className="min-w-full text-sm">
             <thead className="border-b border-gray-100 bg-gray-50 text-xs uppercase text-gray-500">
               <tr>
-                <th className="px-4 py-2 text-left">Employee</th>
-                <th className="px-3 py-2 text-right">Basic</th>
-                <th className="px-3 py-2 text-right">Work Days</th>
-                <th className="px-3 py-2 text-right">Absent</th>
-                <th className="px-3 py-2 text-right">OT</th>
-                <th className="px-3 py-2 text-right">Att. Bonus</th>
-                <th className="px-3 py-2 text-right">OT Premium</th>
-                <th className="px-3 py-2 text-right">Ad-hoc</th>
-                <th className="px-3 py-2 text-right">Advance</th>
-                <th className="px-3 py-2 text-right">Fines</th>
-                <th className="px-3 py-2 text-right font-bold">Net Pay</th>
+                <th className="px-4 py-2 text-left">{t.colEmployee}</th>
+                <th className="px-3 py-2 text-right">{t.colBasic}</th>
+                <th className="px-3 py-2 text-right">{t.colWorkDays}</th>
+                <th className="px-3 py-2 text-right">{t.colAbsentShort}</th>
+                <th className="px-3 py-2 text-right">{t.colOtShort}</th>
+                <th className="px-3 py-2 text-right">{t.colAttBonus}</th>
+                <th className="px-3 py-2 text-right">{t.colOtPremium}</th>
+                <th className="px-3 py-2 text-right">{t.colAdHoc}</th>
+                <th className="px-3 py-2 text-right">{t.colAdvance}</th>
+                <th className="px-3 py-2 text-right">{t.colFinesShort}</th>
+                <th className="px-3 py-2 text-right font-bold">{t.colNetPay}</th>
                 <th className="px-3 py-2" />
               </tr>
             </thead>
@@ -106,7 +110,7 @@ export default async function PayrollDetailPage({
                   <td className="px-3 py-2 text-right font-bold">{item.netPay.toLocaleString()}</td>
                   <td className="px-3 py-2">
                     <Link href={`/hr/payroll/${yearMonth}/slip/${item.employeeId}`} className="text-xs text-brand hover:underline">
-                      Slip
+                      {t.slipLink}
                     </Link>
                   </td>
                 </tr>
@@ -114,7 +118,7 @@ export default async function PayrollDetailPage({
             </tbody>
             <tfoot className="border-t border-gray-100 bg-gray-50">
               <tr>
-                <td colSpan={10} className="px-4 py-2 text-right text-sm font-semibold">Total Payout</td>
+                <td colSpan={10} className="px-4 py-2 text-right text-sm font-semibold">{t.totalPayout}</td>
                 <td className="px-3 py-2 text-right font-bold text-brand">{totalNet.toLocaleString()} MMK</td>
                 <td />
               </tr>
@@ -123,8 +127,8 @@ export default async function PayrollDetailPage({
         </div>
       ) : (
         <div className="card text-center text-gray-400 py-10">
-          <p className="mb-2">No payroll generated for this month yet.</p>
-          <p className="text-sm">Generate it from attendance, advances, and fines recorded for this period.</p>
+          <p className="mb-2">{t.noPayrollGenerated}</p>
+          <p className="text-sm">{t.generateHint}</p>
         </div>
       )}
     </div>

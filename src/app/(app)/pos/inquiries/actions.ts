@@ -11,11 +11,11 @@ async function guard() {
 
 export async function quoteInquiry(inquiryId: string, price: number): Promise<ActionResult> {
   const session = await guard();
-  if (!Number.isFinite(price) || price <= 0) return { ok: false, error: "Enter a valid price" };
+  if (!Number.isFinite(price) || price <= 0) return { ok: false, error: "errInvalidPrice" };
 
   const inquiry = await db.priceInquiry.findUnique({ where: { id: inquiryId } });
-  if (!inquiry) return { ok: false, error: "Inquiry not found" };
-  if (inquiry.status !== "OPEN") return { ok: false, error: "This inquiry has already been handled" };
+  if (!inquiry) return { ok: false, error: "errInquiryNotFound" };
+  if (inquiry.status !== "OPEN") return { ok: false, error: "errInquiryAlreadyHandled" };
 
   await db.priceInquiry.update({
     where: { id: inquiryId },
@@ -31,8 +31,8 @@ export async function closeInquiry(inquiryId: string): Promise<ActionResult> {
   await guard();
 
   const inquiry = await db.priceInquiry.findUnique({ where: { id: inquiryId } });
-  if (!inquiry) return { ok: false, error: "Inquiry not found" };
-  if (inquiry.status === "CONVERTED") return { ok: false, error: "This inquiry has already converted to an order" };
+  if (!inquiry) return { ok: false, error: "errInquiryNotFound" };
+  if (inquiry.status === "CONVERTED") return { ok: false, error: "errInquiryAlreadyConverted" };
 
   await db.priceInquiry.update({ where: { id: inquiryId }, data: { status: "CLOSED" } });
 
@@ -45,8 +45,8 @@ export async function markInquiryConverted(inquiryId: string): Promise<ActionRes
   await guard();
 
   const inquiry = await db.priceInquiry.findUnique({ where: { id: inquiryId } });
-  if (!inquiry) return { ok: false, error: "Inquiry not found" };
-  if (inquiry.status !== "QUOTED") return { ok: false, error: "Quote the price before converting" };
+  if (!inquiry) return { ok: false, error: "errInquiryNotFound" };
+  if (inquiry.status !== "QUOTED") return { ok: false, error: "errQuoteBeforeConverting" };
 
   await db.priceInquiry.update({ where: { id: inquiryId }, data: { status: "CONVERTED" } });
 

@@ -3,16 +3,21 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { generatePayroll, lockPayroll } from "./actions";
+import { hrDict } from "@/lib/i18n/dict/hr";
+import type { Language } from "@/lib/i18n/language";
 
 export default function PayrollActions({
   yearMonth,
   hasPayroll,
   hasItems,
+  lang,
 }: {
   yearMonth: string;
   hasPayroll: boolean;
   hasItems: boolean;
+  lang: Language;
 }) {
+  const t = hrDict[lang];
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -27,7 +32,7 @@ export default function PayrollActions({
   }
 
   function lock() {
-    if (!confirm("Lock this payroll? Advances and fines for this period will be marked as deducted, and this cannot be undone.")) return;
+    if (!confirm(t.lockConfirmMsg)) return;
     setError("");
     startTransition(async () => {
       const res = await lockPayroll(yearMonth);
@@ -36,11 +41,13 @@ export default function PayrollActions({
     });
   }
 
+  const errorText = error && error in t ? t[error as keyof typeof t] : error;
+
   return (
     <div className="space-y-2">
       <div className="flex gap-3">
         <button disabled={pending} onClick={generate} className="btn-primary">
-          {pending ? "Working…" : hasPayroll ? "Regenerate" : "Generate Payroll"}
+          {pending ? t.workingEllipsis : hasPayroll ? t.regenerateBtn : t.generateBtn}
         </button>
         {hasPayroll && hasItems && (
           <button
@@ -48,11 +55,11 @@ export default function PayrollActions({
             onClick={lock}
             className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
           >
-            Lock Payroll
+            {t.lockPayrollBtn}
           </button>
         )}
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {errorText && <p className="text-sm text-red-600">{errorText}</p>}
     </div>
   );
 }

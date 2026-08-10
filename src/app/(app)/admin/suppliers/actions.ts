@@ -29,7 +29,7 @@ function toData(formData: FormData) {
 export async function createSupplier(formData: FormData) {
   await requireAnyRole(["ADMIN", "MANAGER"]);
   const parsed = SupplierSchema.safeParse(toData(formData));
-  if (!parsed.success) return { ok: false as const, error: "Invalid data" };
+  if (!parsed.success) return { ok: false as const, error: "errInvalidData" };
 
   const supplier = await db.supplier.create({ data: parsed.data });
   revalidatePath("/admin/suppliers");
@@ -39,7 +39,7 @@ export async function createSupplier(formData: FormData) {
 export async function updateSupplier(id: string, formData: FormData) {
   await requireAnyRole(["ADMIN", "MANAGER"]);
   const parsed = SupplierSchema.safeParse(toData(formData));
-  if (!parsed.success) return { ok: false as const, error: "Invalid data" };
+  if (!parsed.success) return { ok: false as const, error: "errInvalidData" };
 
   await db.supplier.update({ where: { id }, data: parsed.data });
   revalidatePath("/admin/suppliers");

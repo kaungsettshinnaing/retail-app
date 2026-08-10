@@ -3,8 +3,19 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createLeaveRequest, reviewLeave } from "./actions";
+import { hrDict } from "@/lib/i18n/dict/hr";
+import { commonDict } from "@/lib/i18n/dict/common";
+import type { Language } from "@/lib/i18n/language";
 
-export function LeaveRequestForm({ employees }: { employees: { userId: string; name: string }[] }) {
+export function LeaveRequestForm({
+  employees,
+  lang,
+}: {
+  employees: { userId: string; name: string }[];
+  lang: Language;
+}) {
+  const t = hrDict[lang];
+  const c = commonDict[lang];
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -18,29 +29,32 @@ export function LeaveRequestForm({ employees }: { employees: { userId: string; n
     });
   }
 
+  const errorText = error && error in t ? t[error as keyof typeof t] : error;
+
   return (
     <div className="card">
-      <h2 className="section-title text-sm mb-3">Log Leave Request</h2>
+      <h2 className="section-title text-sm mb-3">{t.logLeaveRequestTitle}</h2>
       <form action={handleSubmit} className="grid gap-3 sm:grid-cols-5">
         <select name="employeeId" required className="input" disabled={pending}>
-          <option value="">Employee…</option>
+          <option value="">{t.employeeSelectPlaceholder}</option>
           {employees.map((e) => (
             <option key={e.userId} value={e.userId}>{e.name}</option>
           ))}
         </select>
         <input name="startDate" type="date" required className="input" disabled={pending} />
         <input name="endDate" type="date" required className="input" disabled={pending} />
-        <input name="reason" className="input" placeholder="Reason (optional)" disabled={pending} />
+        <input name="reason" className="input" placeholder={t.reasonOptionalPlaceholder} disabled={pending} />
         <button type="submit" className="btn-primary" disabled={pending}>
-          {pending ? "Saving…" : "Log Request"}
+          {pending ? c.saving : t.logRequestBtn}
         </button>
       </form>
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {errorText && <p className="mt-2 text-sm text-red-600">{errorText}</p>}
     </div>
   );
 }
 
-export function LeaveReviewButtons({ id }: { id: string }) {
+export function LeaveReviewButtons({ id, lang }: { id: string; lang: Language }) {
+  const t = hrDict[lang];
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -54,17 +68,19 @@ export function LeaveReviewButtons({ id }: { id: string }) {
     });
   }
 
+  const errorText = error && error in t ? t[error as keyof typeof t] : error;
+
   return (
     <div className="flex items-center gap-2">
       <button disabled={pending} onClick={() => decide("APPROVED")}
         className="rounded-lg bg-green-600 px-3 py-1 text-sm text-white disabled:opacity-60">
-        Approve
+        {t.approveBtn}
       </button>
       <button disabled={pending} onClick={() => decide("REJECTED")}
         className="rounded-lg bg-red-600 px-3 py-1 text-sm text-white disabled:opacity-60">
-        Reject
+        {t.rejectBtn}
       </button>
-      {error && <span className="text-xs text-red-600">{error}</span>}
+      {errorText && <span className="text-xs text-red-600">{errorText}</span>}
     </div>
   );
 }

@@ -34,14 +34,14 @@ const CategorySchema = z.object({
 export async function createCategory(formData: FormData) {
   await requireAnyRole(["ADMIN", "MANAGER"]);
   const parsed = CategorySchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return { ok: false as const, error: "Invalid data" };
+  if (!parsed.success) return { ok: false as const, error: "errInvalidData" };
   const { name, parentId, sortOrder } = parsed.data;
 
   // Only allow 2 levels: if parentId has a parent, reject
   if (parentId) {
     const parent = await db.category.findUnique({ where: { id: parentId } });
-    if (!parent) return { ok: false as const, error: "Parent not found" };
-    if (parent.parentId) return { ok: false as const, error: "Maximum 2 levels allowed" };
+    if (!parent) return { ok: false as const, error: "errParentNotFound" };
+    if (parent.parentId) return { ok: false as const, error: "errMaxLevels" };
   }
 
   const slug = await uniqueSlug(slugify(name));
@@ -53,7 +53,7 @@ export async function createCategory(formData: FormData) {
 export async function updateCategory(id: string, formData: FormData) {
   await requireAnyRole(["ADMIN", "MANAGER"]);
   const parsed = CategorySchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return { ok: false as const, error: "Invalid data" };
+  if (!parsed.success) return { ok: false as const, error: "errInvalidData" };
   const { name, parentId, sortOrder } = parsed.data;
 
   const slug = await uniqueSlug(slugify(name), id);
@@ -75,9 +75,9 @@ export async function toggleCategory(id: string, isActive: boolean) {
 export async function deleteCategory(id: string) {
   await requireAnyRole(["ADMIN", "MANAGER"]);
   const hasProducts = await db.product.count({ where: { categoryId: id } });
-  if (hasProducts > 0) return { ok: false as const, error: "Category has products — deactivate instead" };
+  if (hasProducts > 0) return { ok: false as const, error: "errCategoryHasProducts" };
   const hasChildren = await db.category.count({ where: { parentId: id } });
-  if (hasChildren > 0) return { ok: false as const, error: "Category has sub-categories — remove them first" };
+  if (hasChildren > 0) return { ok: false as const, error: "errCategoryHasChildren" };
   await db.category.delete({ where: { id } });
   revalidatePath("/admin/categories");
   return { ok: true as const };

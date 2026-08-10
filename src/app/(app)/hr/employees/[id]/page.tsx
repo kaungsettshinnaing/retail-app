@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 import { prisma as db } from "@/lib/db";
 import { formatDate, formatMoney } from "@/lib/format";
 import EmployeeActiveToggle from "./EmployeeActiveToggle";
+import { requireSession } from "@/lib/auth";
+import { hrDict } from "@/lib/i18n/dict/hr";
+import { commonDict } from "@/lib/i18n/dict/common";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +13,9 @@ const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default async function EmployeeProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const user = await requireSession();
+  const t = hrDict[user.language];
+  const c = commonDict[user.language];
 
   const emp = await db.employee.findUnique({
     where: { userId: id },
@@ -21,20 +27,20 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   if (!emp) notFound();
 
   const fields: [string, string][] = [
-    ["Employee No.", emp.employeeNo ?? "—"],
-    ["Username", emp.user.username],
-    ["Staff Role", emp.staffRole?.name ?? "—"],
-    ["Permissions", emp.user.roles.join(", ") || "—"],
-    ["Status", emp.isActive ? "Active" : "Inactive"],
-    ["Start Date", formatDate(emp.startDate)],
-    ["Date of Birth", formatDate(emp.dateOfBirth)],
-    ["Phone", emp.phone ?? "—"],
-    ["Address", emp.address ?? "—"],
-    ["Emergency Contact", emp.emergencyContact ?? "—"],
-    ["Bank Account", emp.bankAccount ?? "—"],
-    ["Basic Salary", formatMoney(emp.basicSalary)],
-    ["Attendance Bonus", formatMoney(emp.attendanceBonus)],
-    ["Rest Days", emp.restDays.map((d) => DAYS[d]).join(", ") || "—"],
+    [t.employeeNoLabel, emp.employeeNo ?? "—"],
+    [t.usernameField, emp.user.username],
+    [t.staffRoleLabel, emp.staffRole?.name ?? "—"],
+    [t.permissionsField, emp.user.roles.join(", ") || "—"],
+    [c.status, emp.isActive ? c.active : c.inactive],
+    [t.startDateLabel, formatDate(emp.startDate)],
+    [t.dateOfBirthLabel, formatDate(emp.dateOfBirth)],
+    [t.phoneLabel, emp.phone ?? "—"],
+    [t.addressLabel, emp.address ?? "—"],
+    [t.emergencyContactLabel, emp.emergencyContact ?? "—"],
+    [t.bankAccountLabel, emp.bankAccount ?? "—"],
+    [t.basicSalaryLabel, formatMoney(emp.basicSalary)],
+    [t.attendanceBonusLabel, formatMoney(emp.attendanceBonus)],
+    [t.restDaysLabel, emp.restDays.map((d) => DAYS[d]).join(", ") || "—"],
   ];
 
   return (
@@ -42,8 +48,8 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
       <div className="flex items-center justify-between">
         <h1 className="section-title">{emp.user.name}</h1>
         <div className="flex gap-2">
-          <Link href={`/hr/employees/${emp.userId}/edit`} className="btn-outline text-sm px-4 py-2">Edit</Link>
-          <EmployeeActiveToggle userId={emp.userId} isActive={emp.isActive} />
+          <Link href={`/hr/employees/${emp.userId}/edit`} className="btn-outline text-sm px-4 py-2">{c.edit}</Link>
+          <EmployeeActiveToggle userId={emp.userId} isActive={emp.isActive} lang={user.language} />
         </div>
       </div>
 

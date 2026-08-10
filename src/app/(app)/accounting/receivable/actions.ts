@@ -14,8 +14,8 @@ export async function confirmPaymentProof(proofId: string): Promise<ActionResult
   const session = await guard();
 
   const proof = await db.orderPaymentProof.findUnique({ where: { id: proofId }, include: { order: true } });
-  if (!proof) return { ok: false, error: "Payment proof not found" };
-  if (proof.status !== "PENDING") return { ok: false, error: "This proof has already been reviewed" };
+  if (!proof) return { ok: false, error: "errProofNotFound" };
+  if (proof.status !== "PENDING") return { ok: false, error: "errProofAlreadyReviewed" };
 
   await db.$transaction(async (tx) => {
     await tx.orderPaymentProof.update({
@@ -27,7 +27,13 @@ export async function confirmPaymentProof(proofId: string): Promise<ActionResult
     if (!order.paidAt) {
       const paidAt = new Date();
       await tx.order.update({ where: { id: order.id }, data: { paidAt } });
-      const items = await tx.orderItem.findMany({ where: { orderId: order.id }, select: { unitCost: true, qty: true } });
+      // Exclude UNAVAILABLE items — they were never actually delivered, so
+      // they must not contribute COGS (their revenue is already excluded
+      // from order.subtotal/total by markItemUnavailable's recalculation).
+      const items = await tx.orderItem.findMany({
+        where: { orderId: order.id, status: { not: "UNAVAILABLE" } },
+        select: { unitCost: true, qty: true },
+      });
       await postOrderPaid(
         tx,
         { id: order.id, subtotal: order.subtotal, discount: order.discount, total: order.total, paymentMethod: order.paymentMethod },
@@ -46,8 +52,8 @@ export async function rejectPaymentProof(proofId: string): Promise<ActionResult>
   const session = await guard();
 
   const proof = await db.orderPaymentProof.findUnique({ where: { id: proofId } });
-  if (!proof) return { ok: false, error: "Payment proof not found" };
-  if (proof.status !== "PENDING") return { ok: false, error: "This proof has already been reviewed" };
+  if (!proof) return { ok: false, error: "errProofNotFound" };
+  if (proof.status !== "PENDING") return { ok: false, error: "errProofAlreadyReviewed" };
 
   await db.orderPaymentProof.update({
     where: { id: proofId },

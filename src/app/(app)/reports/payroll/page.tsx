@@ -1,6 +1,9 @@
 import { prisma as db } from "@/lib/db";
 import { formatMoney, formatMonthYear, formatNumber } from "@/lib/format";
 import { currentYearMonth } from "@/lib/reports";
+import { requireSession } from "@/lib/auth";
+import { reportsDict } from "@/lib/i18n/dict/reports";
+import { commonDict } from "@/lib/i18n/dict/common";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +14,10 @@ export default async function PayrollReportPage({
 }: {
   searchParams: Promise<{ month?: string }>;
 }) {
+  const user = await requireSession();
+  const t = reportsDict[user.language];
+  const c = commonDict[user.language];
+
   const { month: monthParam } = await searchParams;
   const yearMonth = monthParam && YM_RE.test(monthParam) ? monthParam : currentYearMonth();
   const [yearStr, monthStr] = yearMonth.split("-");
@@ -51,14 +58,14 @@ export default async function PayrollReportPage({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="section-title">Payroll Report</h1>
+        <h1 className="section-title">{t.payrollReportTitle}</h1>
         <form className="flex items-end gap-2" method="get">
           <div>
-            <label className="text-sm text-gray-600 block mb-1">Month</label>
+            <label className="text-sm text-gray-600 block mb-1">{t.monthLabel}</label>
             <input type="month" name="month" defaultValue={yearMonth} className="input" />
           </div>
           <button type="submit" className="btn-outline">
-            Go
+            {t.go}
           </button>
         </form>
       </div>
@@ -66,16 +73,16 @@ export default async function PayrollReportPage({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="card">
           <div className="text-xs text-gray-500 uppercase tracking-wide">
-            {formatMonthYear(month, year)} — Headcount
+            {formatMonthYear(month, year)} — {t.headcount}
           </div>
           <div className="text-lg font-semibold text-gray-800">{formatNumber(headcount)}</div>
         </div>
         <div className="card">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Total Basic Salary</div>
+          <div className="text-xs text-gray-500 uppercase tracking-wide">{t.totalBasicSalary}</div>
           <div className="text-lg font-semibold text-gray-800">{formatMoney(totalBasic)}</div>
         </div>
         <div className="card">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Total Net Pay</div>
+          <div className="text-xs text-gray-500 uppercase tracking-wide">{t.totalNetPay}</div>
           <div className="text-lg font-semibold text-brand">{formatMoney(totalNetPay)}</div>
         </div>
       </div>
@@ -83,21 +90,21 @@ export default async function PayrollReportPage({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 card overflow-hidden p-0">
           <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Net Pay by Employee — {formatMonthYear(month, year)}
+            {t.netPayByEmployee} — {formatMonthYear(month, year)}
           </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide">
-                <th className="py-2 px-4 text-left">Employee</th>
-                <th className="py-2 px-4 text-right">Basic</th>
-                <th className="py-2 px-4 text-right">Net Pay</th>
+                <th className="py-2 px-4 text-left">{t.colEmployee}</th>
+                <th className="py-2 px-4 text-right">{t.colBasic}</th>
+                <th className="py-2 px-4 text-right">{t.colNetPay}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {items.length === 0 && (
                 <tr>
                   <td className="py-8 px-4 text-center text-gray-400" colSpan={3}>
-                    No payroll generated for this month.
+                    {t.noPayrollForMonth}
                   </td>
                 </tr>
               )}
@@ -113,7 +120,7 @@ export default async function PayrollReportPage({
               <tfoot className="border-t border-gray-100 bg-gray-50">
                 <tr>
                   <td className="py-2 px-4 text-right font-semibold" colSpan={2}>
-                    Total
+                    {c.total}
                   </td>
                   <td className="py-2 px-4 text-right font-bold text-brand">{formatMoney(totalNetPay)}</td>
                 </tr>
@@ -124,20 +131,20 @@ export default async function PayrollReportPage({
 
         <div className="card overflow-hidden p-0">
           <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Payroll Cost by Month
+            {t.payrollCostByMonth}
           </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide">
-                <th className="py-2 px-4 text-left">Period</th>
-                <th className="py-2 px-4 text-right">Total</th>
+                <th className="py-2 px-4 text-left">{t.colPeriod}</th>
+                <th className="py-2 px-4 text-right">{c.total}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {monthlyTotals.length === 0 && (
                 <tr>
                   <td className="py-8 px-4 text-center text-gray-400" colSpan={2}>
-                    No payrolls yet.
+                    {t.noPayrollsYet}
                   </td>
                 </tr>
               )}
