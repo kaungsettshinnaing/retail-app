@@ -77,8 +77,9 @@ jobs:
             set -e
             cd /opt/retail-app
 
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u kaungsettshinnaing --password-stdin
-
+            # ghcr.io/kaungsettshinnaing/retail-app is a public package (public repo),
+            # so no login is needed for pulling — and a bad/under-scoped GHCR_PAT
+            # causes "denied" errors that anonymous pulls don't hit.
             docker compose pull
             docker compose up -d --remove-orphans
             docker image prune -f
@@ -100,8 +101,9 @@ jobs:
             set -e
             cd /opt/retail-app-uat
 
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u kaungsettshinnaing --password-stdin
-
+            # ghcr.io/kaungsettshinnaing/retail-app is a public package (public repo),
+            # so no login is needed for pulling — and a bad/under-scoped GHCR_PAT
+            # causes "denied" errors that anonymous pulls don't hit.
             docker compose -f docker-compose.uat.yml --project-name retail-uat --env-file .env.uat pull
             docker compose -f docker-compose.uat.yml --project-name retail-uat --env-file .env.uat up -d --remove-orphans
             docker image prune -f
